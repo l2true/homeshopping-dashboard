@@ -1,0 +1,33 @@
+# 인증 정보 (절대 업로드 금지)
+credentials.json
+google_credentials.json
+
+# Python
+__pycache__/
+*.pyc
+*.py
+!daily_capture.py
+
+# 임시/분석 파일
+*.txt
+*.sql
+*.json
+*.xlsx
+*.ipynb
+*.md
+!README.md
+
+# 임시 캡처 (최종본만 유지)
+lotte_view*.png
+lotte_tab*.png
+lotte_sec*.png
+lotte_main.png
+lotte_full.png
+cjonstyle_familyfesta*.png
+cjonstyle_mobile.png
+
+# 기타
+.claude/
+__MACOSX/
+download/
+templates/

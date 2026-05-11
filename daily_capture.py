@@ -175,6 +175,19 @@ def update_html(cj_tab, lotte_tab):
     print(f'HTML 업데이트 완료: {TODAY}')
 
 
+def git_push():
+    """캡처 결과를 GitHub에 자동 push"""
+    import subprocess
+    cmds = [
+        ['git', '-C', BASE_DIR, 'add', 'index.html', 'cj_next_tab_full.png', 'lotte_next_tab_full.png'],
+        ['git', '-C', BASE_DIR, 'commit', '-m', f'Auto update: {TODAY}'],
+        ['git', '-C', BASE_DIR, 'push', 'origin', 'main'],
+    ]
+    for cmd in cmds:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        print(result.stdout or result.stderr)
+
+
 if __name__ == '__main__':
     print(f'[{TODAY}] 홈쇼핑 자동 캡처 시작...')
     with sync_playwright() as p:
@@ -185,4 +198,8 @@ if __name__ == '__main__':
         print(f'롯데 완료: {lotte_tab}')
         browser.close()
     update_html(cj_tab, lotte_tab)
-    print('전체 완료!')
+    # index.html도 동기화
+    import shutil
+    shutil.copy(os.path.join(BASE_DIR, 'event_summary.html'), os.path.join(BASE_DIR, 'index.html'))
+    git_push()
+    print('전체 완료! GitHub Pages 자동 업데이트됨')

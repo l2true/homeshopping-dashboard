@@ -28,14 +28,8 @@
       margin: 32px auto;
       padding: 0 24px;
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 32px;
-    }
-    @media (max-width: 1200px) {
-      .container { grid-template-columns: 1fr 1fr; }
-    }
-    @media (max-width: 700px) {
-      .container { grid-template-columns: 1fr; }
     }
 
     .card {
@@ -356,61 +350,6 @@
   </div>
 
 </div>
-
-  <!-- 현대홈쇼핑 -->
-  <div class="card">
-    <div class="card-header">
-      <span class="logo" style="background:#e63312;">현대홈쇼핑</span>
-      <span class="title">현대Hmall 메인</span>
-      <span class="period">2026.05.11</span>
-    </div>
-    <div class="card-body">
-      <div class="screenshot-wrap">
-        <p>📱 모바일 캡처본</p>
-        <img src="hyundai_full.png" alt="현대홈쇼핑" onclick="openModal(this.src)">
-        <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
-      </div>
-      <div class="summary">
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num" style="background:#e63312;">①</span>
-            데이즈온 BIG WEEK
-            <span class="tag tag-red">~5월 중순</span>
-          </div>
-          <table>
-            <tr><th>혜택</th><th>내용</th></tr>
-            <tr><td><b>최대 60% 할인</b></td><td>+사은품 증정</td></tr>
-          </table>
-        </div>
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num" style="background:#e63312;">②</span>
-            실시간 진행 방송 특가
-          </div>
-          <table>
-            <tr><th>상품</th><th>가격</th></tr>
-            <tr><td>TAG ME 여성 티셔츠 6종</td><td><b>59,900원</b></td></tr>
-            <tr><td>기타 라이브 방송 특가</td><td><b>실시간 변동</b></td></tr>
-          </table>
-        </div>
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num" style="background:#e63312;">③</span>
-            실시간 인기 상품
-          </div>
-          <table>
-            <tr><th>상품</th><th>가격</th></tr>
-            <tr><td>슬리퍼/샌들 특가</td><td><b>76,790원~</b></td></tr>
-            <tr><td>여름 의류 기획전</td><td><b>169,280원~</b></td></tr>
-          </table>
-        </div>
-
-      </div>
-    </div>
-  </div>
 
 <!-- 이미지 모달 -->
 <div class="modal" id="modal" onclick="closeModal()">

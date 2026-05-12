@@ -3,369 +3,79 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>홈쇼핑 행사 요약 — 2026.05.11</title>
+  <title>홈쇼핑 행사 요약 — 2026.05.12</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-      background: #f4f6f9;
-      color: #222;
-    }
-
-    header {
-      background: #1a1a2e;
-      color: white;
-      padding: 24px 32px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
+    body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f6f9; color: #222; }
+    header { background: #1a1a2e; color: white; padding: 24px 32px; display: flex; align-items: center; gap: 12px; }
     header h1 { font-size: 20px; font-weight: 700; }
     header span { font-size: 14px; color: #aaa; margin-left: auto; }
-
-    .container {
-      max-width: 1400px;
-      margin: 32px auto;
-      padding: 0 24px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 32px;
-    }
-
-    .card {
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-      overflow: hidden;
-    }
-
-    .card-header {
-      padding: 20px 24px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      border-bottom: 1px solid #f0f0f0;
-    }
-    .card-header .logo {
-      font-size: 13px;
-      font-weight: 800;
-      padding: 6px 12px;
-      border-radius: 8px;
-      color: white;
-    }
-    .logo.cj { background: #e8003d; }
-    .logo.lotte { background: #e60012; }
-
+    .container { max-width: 1400px; margin: 32px auto; padding: 0 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+    .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
+    .card-header { padding: 20px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f0f0f0; }
+    .logo { font-size: 13px; font-weight: 800; padding: 6px 12px; border-radius: 8px; color: white; }
+    .logo.cj { background: #e8003d; } .logo.lotte { background: #e60012; }
     .card-header .title { font-size: 18px; font-weight: 700; }
-    .card-header .period {
-      margin-left: auto;
-      font-size: 13px;
-      color: #888;
-      background: #f5f5f5;
-      padding: 4px 10px;
-      border-radius: 20px;
-    }
-
-    .card-body {
-      display: flex;
-      gap: 0;
-    }
-
-    /* 캡처본 */
-    .screenshot-wrap {
-      width: 200px;
-      min-width: 200px;
-      border-right: 1px solid #f0f0f0;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      background: #fafafa;
-    }
-    .screenshot-wrap p {
-      font-size: 11px;
-      color: #999;
-    }
-    .screenshot-wrap img {
-      width: 100%;
-      border-radius: 8px;
-      border: 1px solid #eee;
-      cursor: pointer;
-      transition: transform 0.2s;
-    }
+    .card-header .period { margin-left: auto; font-size: 13px; color: #888; background: #f5f5f5; padding: 4px 10px; border-radius: 20px; }
+    .card-body { display: flex; }
+    .screenshot-wrap { width: 200px; min-width: 200px; border-right: 1px solid #f0f0f0; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; background: #fafafa; }
+    .screenshot-wrap p { font-size: 11px; color: #999; }
+    .screenshot-wrap img { width: 100%; border-radius: 8px; border: 1px solid #eee; cursor: pointer; transition: transform 0.2s; }
     .screenshot-wrap img:hover { transform: scale(1.02); }
-
-    /* 행사 요약 */
-    .summary {
-      flex: 1;
-      padding: 20px 24px;
-      overflow-y: auto;
-      max-height: 600px;
-    }
-
-    .event-block {
-      margin-bottom: 20px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid #f0f0f0;
-    }
-    .event-block:last-child { border-bottom: none; margin-bottom: 0; }
-
-    .event-title {
-      font-size: 14px;
-      font-weight: 700;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .event-num {
-      background: #1a1a2e;
-      color: white;
-      font-size: 11px;
-      padding: 2px 7px;
-      border-radius: 4px;
-    }
-    .event-num.cj-num { background: #e8003d; }
-    .event-num.lotte-num { background: #e60012; }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-      margin-top: 8px;
-    }
-    th {
-      background: #f7f8fa;
-      padding: 7px 10px;
-      text-align: left;
-      font-weight: 600;
-      color: #555;
-      border-bottom: 1px solid #eee;
-    }
-    td {
-      padding: 7px 10px;
-      border-bottom: 1px solid #f5f5f5;
-      color: #333;
-    }
-    tr:last-child td { border-bottom: none; }
-
-    .tag {
-      display: inline-block;
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-weight: 600;
-    }
-    .tag-red { background: #fff0f0; color: #e8003d; }
-    .tag-blue { background: #f0f4ff; color: #2c5ff6; }
-    .tag-green { background: #f0fff4; color: #1a8a3c; }
-    .tag-orange { background: #fff7f0; color: #e07000; }
-
-    /* 이미지 모달 */
-    .modal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.85);
-      z-index: 1000;
-      justify-content: center;
-      align-items: flex-start;
-      padding: 24px;
-      overflow-y: auto;
-    }
+    .summary { flex: 1; padding: 20px 24px; overflow-y: auto; max-height: 600px; display: flex; align-items: center; justify-content: center; color: #888; font-size: 14px; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: flex-start; padding: 24px; overflow-y: auto; }
     .modal.open { display: flex; }
-    .modal img {
-      max-width: 390px;
-      width: 100%;
-      border-radius: 12px;
-      margin: auto;
-    }
-    .modal-close {
-      position: fixed;
-      top: 16px;
-      right: 20px;
-      color: white;
-      font-size: 32px;
-      cursor: pointer;
-      z-index: 1001;
-    }
-
-    @media (max-width: 900px) {
-      .container { grid-template-columns: 1fr; }
-      .card-body { flex-direction: column; }
-      .screenshot-wrap { width: 100%; border-right: none; border-bottom: 1px solid #f0f0f0; flex-direction: row; flex-wrap: wrap; justify-content: center; }
-      .screenshot-wrap img { width: 160px; }
-    }
+    .modal img { max-width: 390px; width: 100%; border-radius: 12px; margin: auto; }
+    .modal-close { position: fixed; top: 16px; right: 20px; color: white; font-size: 32px; cursor: pointer; z-index: 1001; }
+    .notice { max-width: 1400px; margin: 0 auto 16px; padding: 0 24px; font-size: 13px; color: #999; }
   </style>
 </head>
 <body>
-
 <header>
   <h1>🛒 홈쇼핑 행사 요약</h1>
-  <span>기준일: 2026.05.11</span>
+  <span>기준일: 2026.05.12 오전 10시 자동 캡처</span>
 </header>
-
+<p class="notice">📌 행사 상세 분석은 Claude가 캡처 후 자동 생성합니다. 이미지를 클릭하면 크게 볼 수 있습니다.</p>
 <div class="container">
-
-  <!-- CJ온스타일 -->
   <div class="card">
     <div class="card-header">
       <span class="logo cj">CJ온스타일</span>
-      <span class="title">쿠폰런 #5갈만족</span>
-      <span class="period">5.11 ~ 5.17</span>
+      <span class="title">쿠폰런</span>
+      <span class="period">2026.05.12</span>
     </div>
     <div class="card-body">
       <div class="screenshot-wrap">
         <p>📱 모바일 캡처본</p>
-        <img src="cjonstyle_couponrun_full.png" alt="CJ온스타일 쿠폰런" onclick="openModal(this.src)">
+        <img src="cj_next_tab_full.png" alt="CJ온스타일" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
-      <div class="summary">
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num cj-num">①</span>
-            매일 선착순 할인 쿠폰
-            <span class="tag tag-red">매일 오전 10시</span>
-          </div>
-          <table>
-            <tr><th>쿠폰</th><th>조건</th><th>한도</th></tr>
-            <tr><td><b>20% 할인</b></td><td>선착순 500명</td><td>최대 1만원</td></tr>
-            <tr><td><b>10% 할인</b></td><td>선착순 5,000명</td><td>최대 5천원</td></tr>
-          </table>
-        </div>
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num cj-num">②</span>
-            누구나 즉시 쿠폰
-          </div>
-          <table>
-            <tr><th>쿠폰</th><th>조건</th><th>한도</th></tr>
-            <tr><td><b>3,000원 할인</b></td><td>조건 없음</td><td>전고객</td></tr>
-          </table>
-        </div>
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num cj-num">③</span>
-            첫 구매 고객 쿠폰
-          </div>
-          <table>
-            <tr><th>쿠폰</th><th>조건</th><th>한도</th></tr>
-            <tr><td><b>20% 할인</b></td><td>첫 구매 or 오랜만 고객</td><td>—</td></tr>
-          </table>
-        </div>
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num cj-num">④</span>
-            식품 쿠폰
-            <span class="tag tag-green">식품 한정</span>
-          </div>
-          <table>
-            <tr><th>쿠폰</th><th>조건</th><th>한도</th></tr>
-            <tr><td><b>10% 할인</b></td><td>식품 카테고리</td><td>—</td></tr>
-          </table>
-        </div>
-
-        <div style="font-size:12px;color:#aaa;margin-top:4px;">
-          ※ 앱 참여 전용 / 선착순 쿠폰은 오픈 알림 신청 권장
-        </div>
-
-      </div>
+      <div class="summary">캡처 완료 — 행사 내용은 위 이미지를 확인하세요</div>
     </div>
   </div>
-
-  <!-- 롯데홈쇼핑 -->
   <div class="card">
     <div class="card-header">
       <span class="logo lotte">롯데홈쇼핑</span>
-      <span class="title">메가 쇼데이</span>
-      <span class="period">5.11 ~ 5.12</span>
+      <span class="title">쇼데이
+~12만적립</span>
+      <span class="period">2026.05.12</span>
     </div>
     <div class="card-body">
       <div class="screenshot-wrap">
         <p>📱 모바일 캡처본</p>
-        <img src="lotte_shoday_full.png" alt="롯데홈쇼핑 쇼데이" onclick="openModal(this.src)">
+        <img src="lotte_next_tab_full.png" alt="롯데홈쇼핑" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
-      <div class="summary">
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num lotte-num">①</span>
-            적립 혜택
-          </div>
-          <table>
-            <tr><th>카테고리</th><th>적립</th></tr>
-            <tr><td>TV 패션/리빙</td><td><b>최대 12만 적립</b></td></tr>
-            <tr><td>TV 가전/가구</td><td><b>최대 3만 적립</b></td></tr>
-          </table>
-        </div>
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num lotte-num">②</span>
-            카드 청구할인
-            <span class="tag tag-blue">오늘 5.11</span>
-          </div>
-          <table>
-            <tr><th>카드</th><th>할인율</th><th>적용일</th></tr>
-            <tr><td>롯데카드</td><td><b>7%</b></td><td>5.11</td></tr>
-            <tr><td>현대카드</td><td><b>5%</b></td><td>5.11</td></tr>
-            <tr><td>신한카드</td><td><b>5%</b></td><td>5.12(화)</td></tr>
-          </table>
-        </div>
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num lotte-num">③</span>
-            단 하루 특별 특가
-            <span class="tag tag-orange">타이머 한정</span>
-          </div>
-          <table>
-            <tr><th>상품</th><th>가격</th></tr>
-            <tr><td>에어리 셔링 점퍼 (런칭가 109,000원)</td><td><b>24,900원</b></td></tr>
-            <tr><td>크록스 바야밴드 클로그 키즈</td><td><b>20% 39,920원</b></td></tr>
-            <tr><td>톰브라운 6S 사선 완장 반팔</td><td><b>20% 457,240원</b></td></tr>
-          </table>
-        </div>
-
-        <div class="event-block">
-          <div class="event-title">
-            <span class="event-num lotte-num">④</span>
-            단독/기획 특가
-          </div>
-          <table>
-            <tr><th>상품</th><th>가격</th></tr>
-            <tr><td>한샘 리모델링 창립기념 특가</td><td><b>11% 2,294,790원~</b></td></tr>
-            <tr><td>꼼비X롯데홈쇼핑 육아 필수템</td><td><b>7% 101,370원~</b></td></tr>
-          </table>
-        </div>
-
-      </div>
+      <div class="summary">캡처 완료 — 행사 내용은 위 이미지를 확인하세요</div>
     </div>
   </div>
-
 </div>
-
-<!-- 이미지 모달 -->
 <div class="modal" id="modal" onclick="closeModal()">
   <span class="modal-close" onclick="closeModal()">✕</span>
   <img id="modal-img" src="" alt="">
 </div>
-
 <script>
-  function openModal(src) {
-    document.getElementById('modal-img').src = src;
-    document.getElementById('modal').classList.add('open');
-  }
-  function closeModal() {
-    document.getElementById('modal').classList.remove('open');
-  }
+  function openModal(src) { document.getElementById('modal-img').src = src; document.getElementById('modal').classList.add('open'); }
+  function closeModal() { document.getElementById('modal').classList.remove('open'); }
 </script>
-
 </body>
 </html>

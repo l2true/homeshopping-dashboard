@@ -75,6 +75,12 @@ def capture_full(page, path):
     return path
 
 
+def capture_banner(page, path, height=600):
+    """상단 배너 영역만 크롭 저장 (메인 프로모션명 판독용)"""
+    page.screenshot(path=path, clip={'x': 0, 'y': 0, 'width': VIEWPORT['width'], 'height': height})
+    return path
+
+
 def save_page_text(page, path):
     """페이지 본문 텍스트 추출 저장 (요약 시 참고용)"""
     try:
@@ -96,6 +102,7 @@ def run_gs(browser, archive_dir):
     page.wait_for_timeout(2000)
     close_popups_gs(page)
     capture_full(page, os.path.join(archive_dir, 'gs_next_tab_full.png'))
+    capture_banner(page, os.path.join(archive_dir, 'gs_banner.png'))
     save_page_text(page, os.path.join(archive_dir, 'gs_page_text.txt'))
     page.close()
     return tab_name
@@ -111,6 +118,7 @@ def run_cj(browser, archive_dir):
     page.wait_for_timeout(2000)
     close_popups(page)
     capture_full(page, os.path.join(archive_dir, 'cj_next_tab_full.png'))
+    capture_banner(page, os.path.join(archive_dir, 'cj_banner.png'))
     save_page_text(page, os.path.join(archive_dir, 'cj_page_text.txt'))
     page.close()
     return tab_name
@@ -125,6 +133,7 @@ def run_lotte(browser, archive_dir):
     tab_name = click_next_tab(page)
     page.wait_for_timeout(2000)
     capture_full(page, os.path.join(archive_dir, 'lotte_next_tab_full.png'))
+    capture_banner(page, os.path.join(archive_dir, 'lotte_banner.png'))
     save_page_text(page, os.path.join(archive_dir, 'lotte_page_text.txt'))
     page.close()
     return tab_name
@@ -140,15 +149,23 @@ def get_archive_dates():
     return folders
 
 
-def _ask_claude(img_path, prompt, text_path=None):
-    """claude CLI subprocess로 이미지+페이지텍스트 분석"""
-    import subprocess
-    with open(img_path, 'rb') as f:
-        img_data = base64.standard_b64encode(f.read()).decode('ascii')
+def _img_content(path):
+    with open(path, 'rb') as f:
+        data = base64.standard_b64encode(f.read()).decode('ascii')
+    return {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': data}}
 
-    content = [
-        {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': img_data}},
-    ]
+
+def _ask_claude(img_path, prompt, text_path=None, banner_path=None):
+    """claude CLI subprocess로 배너+전체이미지+페이지텍스트 분석"""
+    import subprocess
+
+    content = []
+    # 배너(상단 크롭)를 먼저 — 메인 프로모션명 판독 우선
+    if banner_path and os.path.exists(banner_path):
+        content.append({'type': 'text', 'text': '[메인 배너 (상단 크롭, 고해상도)]'})
+        content.append(_img_content(banner_path))
+    content.append({'type': 'text', 'text': '[전체 페이지 캡처]'})
+    content.append(_img_content(img_path))
     if text_path and os.path.exists(text_path):
         with open(text_path, encoding='utf-8', errors='replace') as f:
             page_text = f.read()[:8000]
@@ -210,14 +227,15 @@ def generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab):
             '- 확인되지 않는 항목은 행 자체를 생략\n\n'
             '형식:\n'
             '기간: (행사 기간)\n'
-            '프로모션명: (행사/기획전 이름)\n'
+            '프로모션명: (메인 행사명 하나만, 서브 행사명 나열 금지)\n'
             '혜택:\n'
             '  혜택종류: 혜택상세\n\n'
             '혜택종류는 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서 선택하세요. 혜택이 여러 개면 줄을 나눠 작성하세요.'
         )
-        text_path = img_path.replace('_next_tab_full.png', '_page_text.txt')
+        text_path   = img_path.replace('_next_tab_full.png', '_page_text.txt')
+        banner_path = img_path.replace('_next_tab_full.png', '_banner.png')
         try:
-            raw = _ask_claude(img_path, prompt, text_path)
+            raw = _ask_claude(img_path, prompt, text_path, banner_path)
             summaries[brand] = parse_summary_text(raw)
             print(f'{brand} 요약 완료')
         except Exception as e:

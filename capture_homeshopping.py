@@ -280,21 +280,44 @@ def parse_summary_text(text):
     return {'period': period, 'name': name, 'body': '\n'.join(body_lines).strip()}
 
 
+# 브랜드명 단독 탭 — 프로모션이 아닌 업체/브랜드 전용관 탭명 목록
+# 새로 발견되면 여기에 추가
+HYUNDAI_BRAND_TABS = {
+    '한국금거래소',
+}
+
+def is_brand_tab(tab_name):
+    """탭명이 브랜드/업체 전용관이면 True (프로모션 행사가 아님)"""
+    if not tab_name:
+        return False
+    return tab_name.strip() in HYUNDAI_BRAND_TABS
+
+
 HYUNDAI_PROMPT_EXTRA = (
     '현대홈쇼핑은 매일 행사가 있지 않습니다. '
-    '진행 중인 행사가 없으면 프로모션명에 "해당없음"이라고 쓰고 혜택 행은 모두 생략하세요.'
+    '진행 중인 행사가 없으면 프로모션명에 "해당없음"이라고 쓰고 혜택 행은 모두 생략하세요. '
+    '탭명이 특정 브랜드나 업체명(예: 한국금거래소, 특정 쇼핑몰 이름 등)인 경우에도 '
+    '프로모션 행사가 아닌 브랜드관으로 판단하여 "해당없음"으로 처리하세요.'
 )
 
 
 def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
     """캡처 이미지를 claude CLI로 분석해 행사 요약 생성"""
     summaries = {}
+
+    # 현대홈쇼핑: 브랜드 탭이면 AI 분석 없이 즉시 해당없음 처리
+    if is_brand_tab(hyundai_tab):
+        print(f'현대 브랜드탭 감지 ({hyundai_tab}) → 해당없음 처리')
+        summaries['hyundai'] = {'period': '', 'name': '해당없음', 'body': ''}
+
     for brand, filename, label, extra in [
         ('hyundai', 'hyundai_next_tab_full.png', hyundai_tab or '현대홈쇼핑', HYUNDAI_PROMPT_EXTRA),
         ('gs',      'gs_next_tab_full.png',      gs_tab      or 'GS SHOP',    ''),
         ('cj',      'cj_next_tab_full.png',       cj_tab      or 'CJ온스타일', ''),
         ('lotte',   'lotte_next_tab_full.png',    lotte_tab   or '롯데홈쇼핑', ''),
     ]:
+        if brand in summaries:  # 이미 처리된 경우(브랜드탭 등) 건너뜀
+            continue
         img_path = os.path.join(archive_date_dir, filename)
         if not os.path.exists(img_path):
             summaries[brand] = {'period': '', 'name': '', 'body': '이미지 없음'}

@@ -53,6 +53,20 @@ def capture_full(page, path):
     return path
 
 
+def run_gs(browser, archive_dir):
+    """GS SHOP 캡처"""
+    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
+    page.goto('https://m.gsshop.com', wait_until='load', timeout=30000)
+    page.wait_for_timeout(3000)
+    close_popups(page)
+    tab_name = click_next_tab(page)
+    page.wait_for_timeout(2000)
+    close_popups(page)
+    capture_full(page, os.path.join(archive_dir, 'gs_next_tab_full.png'))
+    page.close()
+    return tab_name
+
+
 def run_cj(browser, archive_dir):
     """CJ온스타일 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
@@ -122,11 +136,12 @@ def _ask_claude(img_path, prompt):
     return ''
 
 
-def generate_summary(archive_date_dir, cj_tab, lotte_tab):
+def generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab):
     """캡처 이미지를 claude CLI로 분석해 행사 요약 생성"""
     summaries = {}
     for brand, filename, label in [
-        ('cj',    'cj_next_tab_full.png',   cj_tab    or 'CJ온스타일'),
+        ('gs',    'gs_next_tab_full.png',    gs_tab    or 'GS SHOP'),
+        ('cj',    'cj_next_tab_full.png',    cj_tab    or 'CJ온스타일'),
         ('lotte', 'lotte_next_tab_full.png', lotte_tab or '롯데홈쇼핑'),
     ]:
         img_path = os.path.join(archive_date_dir, filename)
@@ -150,7 +165,7 @@ def generate_summary(archive_date_dir, cj_tab, lotte_tab):
     return summaries
 
 
-def update_html(cj_tab, lotte_tab, archive_dates):
+def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
     # Load summaries for all archived dates
     all_summaries = {}
     for d in archive_dates:
@@ -163,7 +178,8 @@ def update_html(cj_tab, lotte_tab, archive_dates):
     latest = archive_dates[0] if archive_dates else TODAY_KEY
     latest_s = all_summaries.get(latest, {})
     no_summary = '캡처 완료 — 행사 내용은 위 이미지를 확인하세요'
-    cj_summary_txt   = latest_s.get('cj',    no_summary)
+    gs_summary_txt    = latest_s.get('gs',    no_summary)
+    cj_summary_txt    = latest_s.get('cj',    no_summary)
     lotte_summary_txt = latest_s.get('lotte', no_summary)
 
     date_nav_items = '\n'.join(
@@ -183,23 +199,22 @@ def update_html(cj_tab, lotte_tab, archive_dates):
     header {{ background: #1a1a2e; color: white; padding: 20px 32px; display: flex; align-items: center; gap: 12px; }}
     header h1 {{ font-size: 20px; font-weight: 700; }}
     header span {{ font-size: 14px; color: #aaa; margin-left: auto; }}
-    .date-nav {{ max-width: 1400px; margin: 20px auto 0; padding: 0 24px; display: flex; gap: 8px; flex-wrap: wrap; }}
+    .date-nav {{ max-width: 1600px; margin: 20px auto 0; padding: 0 24px; display: flex; gap: 8px; flex-wrap: wrap; }}
     .date-btn {{ padding: 6px 14px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 13px; cursor: pointer; color: #555; }}
     .date-btn.active {{ background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }}
-    .container {{ max-width: 1400px; margin: 20px auto 32px; padding: 0 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }}
+    .container {{ max-width: 1600px; margin: 20px auto 32px; padding: 0 24px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }}
     .card {{ background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }}
-    .card-header {{ padding: 20px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f0f0f0; }}
-    .logo {{ font-size: 13px; font-weight: 800; padding: 6px 12px; border-radius: 8px; color: white; }}
-    .logo.cj {{ background: #e8003d; }} .logo.lotte {{ background: #e60012; }}
-    .card-header .title {{ font-size: 18px; font-weight: 700; }}
-    .card-header .period {{ margin-left: auto; font-size: 13px; color: #888; background: #f5f5f5; padding: 4px 10px; border-radius: 20px; }}
+    .card-header {{ padding: 16px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #f0f0f0; }}
+    .logo {{ font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 8px; color: white; white-space: nowrap; }}
+    .logo.gs {{ background: #00863c; }} .logo.cj {{ background: #e8003d; }} .logo.lotte {{ background: #e60012; }}
+    .card-header .title {{ font-size: 16px; font-weight: 700; }}
+    .card-header .period {{ margin-left: auto; font-size: 12px; color: #888; background: #f5f5f5; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }}
     .card-body {{ display: flex; }}
-    .screenshot-wrap {{ width: 200px; min-width: 200px; border-right: 1px solid #f0f0f0; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; background: #fafafa; }}
+    .screenshot-wrap {{ width: 160px; min-width: 160px; border-right: 1px solid #f0f0f0; padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; background: #fafafa; }}
     .screenshot-wrap p {{ font-size: 11px; color: #999; }}
     .screenshot-wrap img {{ width: 100%; border-radius: 8px; border: 1px solid #eee; cursor: pointer; transition: transform 0.2s; }}
     .screenshot-wrap img:hover {{ transform: scale(1.02); }}
-    .summary {{ flex: 1; padding: 20px 24px; overflow-y: auto; max-height: 600px; font-size: 14px; line-height: 1.8; color: #444; white-space: pre-wrap; }}
-    .summary.empty {{ display: flex; align-items: center; justify-content: center; color: #bbb; }}
+    .summary {{ flex: 1; padding: 16px 20px; overflow-y: auto; max-height: 600px; font-size: 13px; line-height: 1.8; color: #444; white-space: pre-wrap; }}
     .modal {{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: flex-start; padding: 24px; overflow-y: auto; }}
     .modal.open {{ display: flex; }}
     .modal img {{ max-width: 390px; width: 100%; border-radius: 12px; margin: auto; }}
@@ -215,6 +230,21 @@ def update_html(cj_tab, lotte_tab, archive_dates):
 {date_nav_items}
 </div>
 <div class="container">
+  <div class="card">
+    <div class="card-header">
+      <span class="logo gs">GS SHOP</span>
+      <span class="title" id="gs-title">{gs_tab or '홈 다음 탭'}</span>
+      <span class="period" id="gs-period">{TODAY}</span>
+    </div>
+    <div class="card-body">
+      <div class="screenshot-wrap">
+        <p>모바일 캡처본</p>
+        <img id="gs-img" src="captures/{latest}/gs_next_tab_full.png" alt="GS SHOP" onclick="openModal(this.src)">
+        <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
+      </div>
+      <div class="summary" id="gs-summary">{gs_summary_txt}</div>
+    </div>
+  </div>
   <div class="card">
     <div class="card-header">
       <span class="logo cj">CJ온스타일</span>
@@ -256,13 +286,16 @@ def update_html(cj_tab, lotte_tab, archive_dates):
   function openModal(src) {{ document.getElementById('modal-img').src = src; document.getElementById('modal').classList.add('open'); }}
   function closeModal() {{ document.getElementById('modal').classList.remove('open'); }}
   function switchDate(d) {{
-    document.getElementById('cj-img').src   = 'captures/' + d + '/cj_next_tab_full.png';
+    document.getElementById('gs-img').src    = 'captures/' + d + '/gs_next_tab_full.png';
+    document.getElementById('cj-img').src    = 'captures/' + d + '/cj_next_tab_full.png';
     document.getElementById('lotte-img').src = 'captures/' + d + '/lotte_next_tab_full.png';
+    document.getElementById('gs-period').textContent    = d;
     document.getElementById('cj-period').textContent    = d;
     document.getElementById('lotte-period').textContent = d;
     document.getElementById('header-date').textContent  = '기준일: ' + d;
     document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.textContent === d));
     const s = summaries[d] || {{}};
+    document.getElementById('gs-summary').textContent    = s.gs    || NO_SUMMARY;
     document.getElementById('cj-summary').textContent    = s.cj    || NO_SUMMARY;
     document.getElementById('lotte-summary').textContent = s.lotte  || NO_SUMMARY;
   }}
@@ -281,6 +314,7 @@ def git_push(archive_date_dir):
     rel = os.path.relpath(archive_date_dir, BASE_DIR).replace('\\', '/')
     files_to_add = [
         'index.html',
+        f'{rel}/gs_next_tab_full.png',
         f'{rel}/cj_next_tab_full.png',
         f'{rel}/lotte_next_tab_full.png',
         f'{rel}/summary.json',
@@ -303,6 +337,8 @@ if __name__ == '__main__':
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
+        gs_tab = run_gs(browser, archive_date_dir)
+        print(f'GS 완료: {gs_tab}')
         cj_tab = run_cj(browser, archive_date_dir)
         print(f'CJ 완료: {cj_tab}')
         lotte_tab = run_lotte(browser, archive_date_dir)
@@ -310,9 +346,9 @@ if __name__ == '__main__':
         browser.close()
 
     print('AI 요약 생성 중...')
-    generate_summary(archive_date_dir, cj_tab, lotte_tab)
+    generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab)
 
     archive_dates = get_archive_dates()
-    update_html(cj_tab, lotte_tab, archive_dates)
+    update_html(gs_tab, cj_tab, lotte_tab, archive_dates)
     git_push(archive_date_dir)
     print('전체 완료! GitHub Pages 자동 업데이트됨')

@@ -6,7 +6,7 @@
 
 from playwright.sync_api import sync_playwright
 from datetime import date
-import os, glob, shutil
+import os, glob, shutil, base64, json
 
 BASE_DIR    = r'C:\AI\claude_with_lakehouse'
 ARCHIVE_DIR = os.path.join(BASE_DIR, 'captures')
@@ -90,9 +90,80 @@ def get_archive_dates():
     return folders
 
 
+def generate_summary(archive_date_dir, cj_tab, lotte_tab):
+    """Claude API로 캡처 이미지 분석 → 행사 요약 (ANTHROPIC_API_KEY 필요)"""
+    try:
+        import anthropic
+    except ImportError:
+        print('anthropic 미설치, 요약 건너뜀. pip install anthropic')
+        return {}
+
+    api_key = os.environ.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        print('ANTHROPIC_API_KEY 없음, 요약 건너뜀')
+        return {}
+
+    client = anthropic.Anthropic()
+    summaries = {}
+
+    for brand, filename, label in [
+        ('cj',    'cj_next_tab_full.png',    cj_tab    or 'CJ온스타일'),
+        ('lotte', 'lotte_next_tab_full.png',  lotte_tab or '롯데홈쇼핑'),
+    ]:
+        img_path = os.path.join(archive_date_dir, filename)
+        if not os.path.exists(img_path):
+            summaries[brand] = '이미지 없음'
+            continue
+
+        with open(img_path, 'rb') as f:
+            img_data = base64.standard_b64encode(f.read()).decode('utf-8')
+
+        resp = client.messages.create(
+            model='claude-haiku-4-5-20251001',
+            max_tokens=1024,
+            messages=[{
+                'role': 'user',
+                'content': [
+                    {
+                        'type': 'image',
+                        'source': {'type': 'base64', 'media_type': 'image/png', 'data': img_data},
+                    },
+                    {
+                        'type': 'text',
+                        'text': (
+                            f'이 이미지는 {label} 탭의 모바일 홈쇼핑 캡처본입니다. '
+                            '현재 진행 중인 주요 행사, 특가 상품, 기획전 등을 한국어로 간략히 요약해주세요. '
+                            '3~5줄 이내로 핵심 내용만 정리해주세요.'
+                        ),
+                    },
+                ],
+            }],
+        )
+        summaries[brand] = resp.content[0].text
+        print(f'{brand} 요약 완료')
+
+    summary_path = os.path.join(archive_date_dir, 'summary.json')
+    with open(summary_path, 'w', encoding='utf-8') as f:
+        json.dump(summaries, f, ensure_ascii=False, indent=2)
+
+    return summaries
+
+
 def update_html(cj_tab, lotte_tab, archive_dates):
-    dates_js = str(archive_dates)
+    # Load summaries for all archived dates
+    all_summaries = {}
+    for d in archive_dates:
+        sp = os.path.join(ARCHIVE_DIR, d, 'summary.json')
+        if os.path.exists(sp):
+            with open(sp, encoding='utf-8') as f:
+                all_summaries[d] = json.load(f)
+
+    summaries_js = json.dumps(all_summaries, ensure_ascii=False)
     latest = archive_dates[0] if archive_dates else TODAY_KEY
+    latest_s = all_summaries.get(latest, {})
+    no_summary = '캡처 완료 — 행사 내용은 위 이미지를 확인하세요'
+    cj_summary_txt   = latest_s.get('cj',    no_summary)
+    lotte_summary_txt = latest_s.get('lotte', no_summary)
 
     date_nav_items = '\n'.join(
         f'<button class="date-btn{" active" if d == latest else ""}" onclick="switchDate(\'{d}\')">{d}</button>'
@@ -126,7 +197,8 @@ def update_html(cj_tab, lotte_tab, archive_dates):
     .screenshot-wrap p {{ font-size: 11px; color: #999; }}
     .screenshot-wrap img {{ width: 100%; border-radius: 8px; border: 1px solid #eee; cursor: pointer; transition: transform 0.2s; }}
     .screenshot-wrap img:hover {{ transform: scale(1.02); }}
-    .summary {{ flex: 1; padding: 20px 24px; overflow-y: auto; max-height: 600px; display: flex; align-items: center; justify-content: center; color: #888; font-size: 14px; }}
+    .summary {{ flex: 1; padding: 20px 24px; overflow-y: auto; max-height: 600px; font-size: 14px; line-height: 1.8; color: #444; white-space: pre-wrap; }}
+    .summary.empty {{ display: flex; align-items: center; justify-content: center; color: #bbb; }}
     .modal {{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: flex-start; padding: 24px; overflow-y: auto; }}
     .modal.open {{ display: flex; }}
     .modal img {{ max-width: 390px; width: 100%; border-radius: 12px; margin: auto; }}
@@ -154,7 +226,7 @@ def update_html(cj_tab, lotte_tab, archive_dates):
         <img id="cj-img" src="captures/{latest}/cj_next_tab_full.png" alt="CJ온스타일" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
-      <div class="summary">캡처 완료 — 행사 내용은 위 이미지를 확인하세요</div>
+      <div class="summary" id="cj-summary">{cj_summary_txt}</div>
     </div>
   </div>
   <div class="card">
@@ -169,7 +241,7 @@ def update_html(cj_tab, lotte_tab, archive_dates):
         <img id="lotte-img" src="captures/{latest}/lotte_next_tab_full.png" alt="롯데홈쇼핑" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
-      <div class="summary">캡처 완료 — 행사 내용은 위 이미지를 확인하세요</div>
+      <div class="summary" id="lotte-summary">{lotte_summary_txt}</div>
     </div>
   </div>
 </div>
@@ -178,15 +250,20 @@ def update_html(cj_tab, lotte_tab, archive_dates):
   <img id="modal-img" src="" alt="">
 </div>
 <script>
+  const summaries = {summaries_js};
+  const NO_SUMMARY = '캡처 완료 — 행사 내용은 위 이미지를 확인하세요';
   function openModal(src) {{ document.getElementById('modal-img').src = src; document.getElementById('modal').classList.add('open'); }}
   function closeModal() {{ document.getElementById('modal').classList.remove('open'); }}
   function switchDate(d) {{
-    document.getElementById('cj-img').src = 'captures/' + d + '/cj_next_tab_full.png';
+    document.getElementById('cj-img').src   = 'captures/' + d + '/cj_next_tab_full.png';
     document.getElementById('lotte-img').src = 'captures/' + d + '/lotte_next_tab_full.png';
-    document.getElementById('cj-period').textContent = d;
+    document.getElementById('cj-period').textContent    = d;
     document.getElementById('lotte-period').textContent = d;
-    document.getElementById('header-date').textContent = '기준일: ' + d;
+    document.getElementById('header-date').textContent  = '기준일: ' + d;
     document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.textContent === d));
+    const s = summaries[d] || {{}};
+    document.getElementById('cj-summary').textContent    = s.cj    || NO_SUMMARY;
+    document.getElementById('lotte-summary').textContent = s.lotte  || NO_SUMMARY;
   }}
 </script>
 </body>
@@ -201,8 +278,14 @@ def git_push(archive_date_dir):
     """캡처 결과를 GitHub에 자동 push"""
     import subprocess
     rel = os.path.relpath(archive_date_dir, BASE_DIR).replace('\\', '/')
+    files_to_add = [
+        'index.html',
+        f'{rel}/cj_next_tab_full.png',
+        f'{rel}/lotte_next_tab_full.png',
+        f'{rel}/summary.json',
+    ]
     cmds = [
-        ['git', '-C', BASE_DIR, 'add', 'index.html', f'{rel}/cj_next_tab_full.png', f'{rel}/lotte_next_tab_full.png'],
+        ['git', '-C', BASE_DIR, 'add', '--force'] + files_to_add,
         ['git', '-C', BASE_DIR, 'commit', '-m', f'Auto update: {TODAY}'],
         ['git', '-C', BASE_DIR, 'push', 'origin', 'main'],
     ]
@@ -224,6 +307,9 @@ if __name__ == '__main__':
         lotte_tab = run_lotte(browser, archive_date_dir)
         print(f'롯데 완료: {lotte_tab}')
         browser.close()
+
+    print('AI 요약 생성 중...')
+    generate_summary(archive_date_dir, cj_tab, lotte_tab)
 
     archive_dates = get_archive_dates()
     update_html(cj_tab, lotte_tab, archive_dates)

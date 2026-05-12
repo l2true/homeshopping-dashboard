@@ -17,6 +17,10 @@ __pycache__/
 *.md
 !README.md
 
+# captures 폴더 내 파일은 gitignore 예외
+!captures/
+!captures/**
+
 # 임시 캡처 (최종본만 유지)
 lotte_view*.png
 lotte_tab*.png

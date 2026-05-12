@@ -451,23 +451,6 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
 {date_nav_items}
 </div>
 <div class="container">
-  <div class="card{'  no-event' if hyundai_no_event else ''}">
-    <div class="card-header">
-      <div class="card-header-top">
-        <span class="logo hyundai">현대홈쇼핑</span>
-        <span class="promo-name" id="hyundai-name">{'행사 없음' if hyundai_no_event else hyundai_name}</span>
-      </div>
-      {'<span class="promo-period" style="background:#bbb;">행사 없음</span>' if hyundai_no_event else f'<span class="promo-period" id="hyundai-period">{hyundai_period}</span>'}
-    </div>
-    <div class="card-body">
-      <div class="screenshot-wrap">
-        <p>모바일 캡처본</p>
-        <img id="hyundai-img" src="captures/{latest}/hyundai_next_tab_full.png" alt="현대홈쇼핑" onclick="openModal(this.src)">
-        <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
-      </div>
-      <div class="summary" id="hyundai-summary">{hyundai_body}</div>
-    </div>
-  </div>
   <div class="card">
     <div class="card-header">
       <div class="card-header-top">
@@ -517,6 +500,23 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary" id="lotte-summary">{lotte_body}</div>
+    </div>
+  </div>
+  <div class="card{'  no-event' if hyundai_no_event else ''}">
+    <div class="card-header">
+      <div class="card-header-top">
+        <span class="logo hyundai">현대홈쇼핑</span>
+        <span class="promo-name" id="hyundai-name">{'행사 없음' if hyundai_no_event else hyundai_name}</span>
+      </div>
+      {'<span class="promo-period" style="background:#bbb;">행사 없음</span>' if hyundai_no_event else f'<span class="promo-period" id="hyundai-period">{hyundai_period}</span>'}
+    </div>
+    <div class="card-body">
+      <div class="screenshot-wrap">
+        <p>모바일 캡처본</p>
+        <img id="hyundai-img" src="captures/{latest}/hyundai_next_tab_full.png" alt="현대홈쇼핑" onclick="openModal(this.src)">
+        <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
+      </div>
+      <div class="summary" id="hyundai-summary">{hyundai_body}</div>
     </div>
   </div>
 </div>

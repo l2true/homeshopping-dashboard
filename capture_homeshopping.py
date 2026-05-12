@@ -193,6 +193,42 @@ def _ask_claude(img_path, prompt, text_path=None, banner_path=None):
     return ''
 
 
+PROMO_HISTORY_PATH = os.path.join(BASE_DIR, 'promo_history.json')
+
+
+def load_promo_history():
+    if os.path.exists(PROMO_HISTORY_PATH):
+        with open(PROMO_HISTORY_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def save_promo_history(history):
+    with open(PROMO_HISTORY_PATH, 'w', encoding='utf-8') as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+
+def update_promo_start(summaries):
+    """프로모션명 변경 감지 → 시작일 갱신, 동일 프로모션이면 최초 시작일 유지"""
+    history = load_promo_history()
+    for brand, s in summaries.items():
+        if not isinstance(s, dict):
+            continue
+        name = s.get('name', '').strip()
+        if not name:
+            continue
+        prev = history.get(brand, {})
+        if prev.get('name') == name:
+            # 같은 프로모션 → 최초 시작일 유지, period 앞부분 교체
+            s['start'] = prev['start']
+        else:
+            # 새 프로모션 → 오늘을 시작일로 기록
+            s['start'] = TODAY_KEY
+            history[brand] = {'name': name, 'start': TODAY_KEY}
+    save_promo_history(history)
+    return summaries
+
+
 def parse_summary_text(text):
     """요약 텍스트에서 기간/프로모션명/혜택 본문 분리"""
     period, name, body_lines = '', '', []
@@ -242,6 +278,8 @@ def generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab):
             print(f'{brand} 요약 실패: {e}')
             summaries[brand] = {'period': '', 'name': '', 'body': '요약 생성 실패'}
 
+    update_promo_start(summaries)
+
     summary_path = os.path.join(archive_date_dir, 'summary.json')
     with open(summary_path, 'w', encoding='utf-8') as f:
         json.dump(summaries, f, ensure_ascii=False, indent=2)
@@ -250,9 +288,18 @@ def generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab):
 
 def _s(brand_data, key, fallback=''):
     """summary dict 또는 구버전 string 에서 값 추출"""
-    if isinstance(brand_data, dict):
-        return brand_data.get(key, fallback)
-    return fallback if key != 'body' else str(brand_data)
+    if not isinstance(brand_data, dict):
+        return fallback if key != 'body' else str(brand_data)
+    if key == 'period':
+        # start가 있으면 "시작일 ~ 페이지표시기간" 형태로 조합
+        start = brand_data.get('start', '')
+        period = brand_data.get('period', '')
+        if start and period:
+            # 페이지 기간에서 끝날짜만 추출 (~ 이후)
+            end = period.split('~')[-1].strip() if '~' in period else period
+            return f'{start} ~ {end}'
+        return start or period or fallback
+    return brand_data.get(key, fallback)
 
 
 def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
@@ -391,7 +438,17 @@ def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
   function sv(obj, key, fb) {{ return (obj[key] && typeof obj[key]==='object' ? obj[key].name||obj[key].period||obj[key].body : null) || (typeof obj[key]==='string' ? obj[key] : null) || fb; }}
   function sfield(obj, brand, field, fb) {{
     const b = obj[brand]; if (!b) return fb;
-    return (typeof b === 'object' ? b[field] : (field==='body'?b:'')) || fb;
+    if (typeof b !== 'object') return field==='body' ? b : fb;
+    if (field === 'period') {{
+      const start = b.start || '';
+      const period = b.period || '';
+      if (start && period) {{
+        const end = period.includes('~') ? period.split('~').pop().trim() : period;
+        return start + ' ~ ' + end;
+      }}
+      return start || period || fb;
+    }}
+    return b[field] || fb;
   }}
   function openModal(src) {{ g('modal-img').src = src; g('modal').classList.add('open'); }}
   function closeModal() {{ g('modal').classList.remove('open'); }}

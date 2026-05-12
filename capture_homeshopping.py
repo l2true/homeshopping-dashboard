@@ -53,15 +53,42 @@ def capture_full(page, path):
     return path
 
 
+def close_popups_gs(page):
+    """GS SHOP 전용 팝업 닫기"""
+    # 공통 닫기 먼저
+    close_popups(page)
+    # GS 특유의 웰컴/이벤트 팝업: ESC 또는 레이어 외부 클릭
+    try:
+        page.keyboard.press('Escape')
+        page.wait_for_timeout(500)
+    except: pass
+    for sel in ['.pop-close', '.btn-close', '.close-btn', '.ly-close',
+                '[class*=close]', '[class*=popup] [class*=close]',
+                'button:has-text("닫기")', 'button:has-text("오늘 하루 안보기")']:
+        try:
+            for btn in page.locator(sel).all():
+                if btn.is_visible():
+                    btn.click(timeout=1000)
+                    page.wait_for_timeout(300)
+        except: pass
+    # 팝업 레이어 뒤 배경 클릭으로 닫기 시도
+    try:
+        page.locator('.dimmed, .dim, .overlay, .bg-dim').first.click(timeout=1000)
+        page.wait_for_timeout(300)
+    except: pass
+
+
 def run_gs(browser, archive_dir):
     """GS SHOP 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
     page.goto('https://m.gsshop.com', wait_until='load', timeout=30000)
     page.wait_for_timeout(3000)
-    close_popups(page)
+    close_popups_gs(page)
+    page.wait_for_timeout(1000)
+    close_popups_gs(page)
     tab_name = click_next_tab(page)
     page.wait_for_timeout(2000)
-    close_popups(page)
+    close_popups_gs(page)
     capture_full(page, os.path.join(archive_dir, 'gs_next_tab_full.png'))
     page.close()
     return tab_name
@@ -150,7 +177,8 @@ def generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab):
             continue
         prompt = (
             f'{label} 홈쇼핑 모바일 캡처본입니다. '
-            '현재 진행 중인 주요 행사, 특가 상품, 기획전을 한국어로 3~5줄로 요약해주세요.'
+            '현재 진행 중인 주요 행사, 특가 상품, 기획전을 한국어로 3~5줄로 요약해주세요. '
+            '마크다운 기호(**, ## 등) 없이 일반 텍스트로만 작성해주세요.'
         )
         try:
             summaries[brand] = _ask_claude(img_path, prompt)

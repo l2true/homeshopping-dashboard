@@ -54,12 +54,12 @@ def close_popups_gs(page):
     except: pass
 
 
-def click_next_tab(page):
-    """홈 탭 오른쪽 탭 클릭"""
+def click_next_tab(page, home_label='홈'):
+    """홈 탭 오른쪽 탭 클릭 (home_label: 홈 탭 텍스트)"""
     return page.evaluate("""
-        () => {
+        (homeLabel) => {
             const tabs = Array.from(document.querySelectorAll('.tab_menu a, .gnb_menu a, [class*=tab] a'));
-            const homeIdx = tabs.findIndex(a => a.innerText.trim() === '홈');
+            const homeIdx = tabs.findIndex(a => a.innerText.trim() === homeLabel);
             if (homeIdx >= 0 && homeIdx+1 < tabs.length) {
                 const next = tabs[homeIdx+1];
                 next.click();
@@ -67,7 +67,7 @@ def click_next_tab(page):
             }
             return null;
         }
-    """)
+    """, home_label)
 
 
 def capture_full(page, path):
@@ -107,7 +107,18 @@ def run_hyundai(browser, archive_dir):
                     page.wait_for_timeout(300)
         except: pass
     close_popups(page)
-    tab_name = click_next_tab(page)
+    tab_name = page.evaluate("""
+        () => {
+            const tabs = Array.from(document.querySelectorAll('[class*=main] nav a, .sc-dp-display nav a'));
+            const idx = tabs.findIndex(a => a.innerText.trim() === '현대홈쇼핑');
+            if (idx >= 0 && idx+1 < tabs.length) {
+                const next = tabs[idx+1];
+                next.click();
+                return next.innerText.trim();
+            }
+            return null;
+        }
+    """)
     page.wait_for_timeout(2000)
     close_popups(page)
     capture_full(page, os.path.join(archive_dir, 'hyundai_next_tab_full.png'))

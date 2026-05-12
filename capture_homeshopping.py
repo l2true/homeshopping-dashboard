@@ -266,7 +266,9 @@ def generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab):
             '프로모션명: (메인 행사명 하나만, 서브 행사명 나열 금지)\n'
             '혜택:\n'
             '  혜택종류: 혜택상세\n\n'
-            '혜택종류는 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서 선택하세요. 혜택이 여러 개면 줄을 나눠 작성하세요.'
+            '혜택종류는 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서 선택하세요.\n'
+            '혜택상세에는 혜택 내용과 함께 적용 조건(카드사명, 선착순 인원, 최대 금액, 기간 등)도 함께 적어주세요.\n'
+            '혜택이 여러 개면 줄을 나눠 작성하세요.'
         )
         text_path   = img_path.replace('_next_tab_full.png', '_page_text.txt')
         banner_path = img_path.replace('_next_tab_full.png', '_banner.png')

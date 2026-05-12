@@ -7,10 +7,13 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f6f9; color: #222; }
-    header { background: #1a1a2e; color: white; padding: 24px 32px; display: flex; align-items: center; gap: 12px; }
+    header { background: #1a1a2e; color: white; padding: 20px 32px; display: flex; align-items: center; gap: 12px; }
     header h1 { font-size: 20px; font-weight: 700; }
     header span { font-size: 14px; color: #aaa; margin-left: auto; }
-    .container { max-width: 1400px; margin: 32px auto; padding: 0 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+    .date-nav { max-width: 1400px; margin: 20px auto 0; padding: 0 24px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .date-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 13px; cursor: pointer; color: #555; }
+    .date-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }
+    .container { max-width: 1400px; margin: 20px auto 32px; padding: 0 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
     .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
     .card-header { padding: 20px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f0f0f0; }
     .logo { font-size: 13px; font-weight: 800; padding: 6px 12px; border-radius: 8px; color: white; }
@@ -27,26 +30,27 @@
     .modal.open { display: flex; }
     .modal img { max-width: 390px; width: 100%; border-radius: 12px; margin: auto; }
     .modal-close { position: fixed; top: 16px; right: 20px; color: white; font-size: 32px; cursor: pointer; z-index: 1001; }
-    .notice { max-width: 1400px; margin: 0 auto 16px; padding: 0 24px; font-size: 13px; color: #999; }
   </style>
 </head>
 <body>
 <header>
-  <h1>🛒 홈쇼핑 행사 요약</h1>
-  <span>기준일: 2026.05.12 오전 10시 자동 캡처</span>
+  <h1>홈쇼핑 행사 요약</h1>
+  <span id="header-date">기준일: 2026.05.12 오전 10시 자동 캡처</span>
 </header>
-<p class="notice">📌 행사 상세 분석은 Claude가 캡처 후 자동 생성합니다. 이미지를 클릭하면 크게 볼 수 있습니다.</p>
+<div class="date-nav" id="date-nav">
+<button class="date-btn active" onclick="switchDate('2026-05-12')">2026-05-12</button>
+</div>
 <div class="container">
   <div class="card">
     <div class="card-header">
       <span class="logo cj">CJ온스타일</span>
-      <span class="title">쿠폰런</span>
-      <span class="period">2026.05.12</span>
+      <span class="title" id="cj-title">쿠폰런</span>
+      <span class="period" id="cj-period">2026.05.12</span>
     </div>
     <div class="card-body">
       <div class="screenshot-wrap">
-        <p>📱 모바일 캡처본</p>
-        <img src="cj_next_tab_full.png" alt="CJ온스타일" onclick="openModal(this.src)">
+        <p>모바일 캡처본</p>
+        <img id="cj-img" src="captures/2026-05-12/cj_next_tab_full.png" alt="CJ온스타일" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary">캡처 완료 — 행사 내용은 위 이미지를 확인하세요</div>
@@ -55,14 +59,13 @@
   <div class="card">
     <div class="card-header">
       <span class="logo lotte">롯데홈쇼핑</span>
-      <span class="title">쇼데이
-~12만적립</span>
-      <span class="period">2026.05.12</span>
+      <span class="title" id="lotte-title">미터 Show Day</span>
+      <span class="period" id="lotte-period">2026.05.12</span>
     </div>
     <div class="card-body">
       <div class="screenshot-wrap">
-        <p>📱 모바일 캡처본</p>
-        <img src="lotte_next_tab_full.png" alt="롯데홈쇼핑" onclick="openModal(this.src)">
+        <p>모바일 캡처본</p>
+        <img id="lotte-img" src="captures/2026-05-12/lotte_next_tab_full.png" alt="롯데홈쇼핑" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary">캡처 완료 — 행사 내용은 위 이미지를 확인하세요</div>
@@ -76,6 +79,14 @@
 <script>
   function openModal(src) { document.getElementById('modal-img').src = src; document.getElementById('modal').classList.add('open'); }
   function closeModal() { document.getElementById('modal').classList.remove('open'); }
+  function switchDate(d) {
+    document.getElementById('cj-img').src = 'captures/' + d + '/cj_next_tab_full.png';
+    document.getElementById('lotte-img').src = 'captures/' + d + '/lotte_next_tab_full.png';
+    document.getElementById('cj-period').textContent = d;
+    document.getElementById('lotte-period').textContent = d;
+    document.getElementById('header-date').textContent = '기준일: ' + d;
+    document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.textContent === d));
+  }
 </script>
 </body>
 </html>

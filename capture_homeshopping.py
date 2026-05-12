@@ -78,6 +78,15 @@ def close_popups_gs(page):
     except: pass
 
 
+def save_page_text(page, path):
+    """페이지 본문 텍스트 추출 저장 (요약 시 참고용)"""
+    try:
+        text = page.inner_text('body')
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(text)
+    except: pass
+
+
 def run_gs(browser, archive_dir):
     """GS SHOP 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
@@ -90,6 +99,7 @@ def run_gs(browser, archive_dir):
     page.wait_for_timeout(2000)
     close_popups_gs(page)
     capture_full(page, os.path.join(archive_dir, 'gs_next_tab_full.png'))
+    save_page_text(page, os.path.join(archive_dir, 'gs_page_text.txt'))
     page.close()
     return tab_name
 
@@ -104,6 +114,7 @@ def run_cj(browser, archive_dir):
     page.wait_for_timeout(2000)
     close_popups(page)
     capture_full(page, os.path.join(archive_dir, 'cj_next_tab_full.png'))
+    save_page_text(page, os.path.join(archive_dir, 'cj_page_text.txt'))
     page.close()
     return tab_name
 
@@ -117,6 +128,7 @@ def run_lotte(browser, archive_dir):
     tab_name = click_next_tab(page)
     page.wait_for_timeout(2000)
     capture_full(page, os.path.join(archive_dir, 'lotte_next_tab_full.png'))
+    save_page_text(page, os.path.join(archive_dir, 'lotte_page_text.txt'))
     page.close()
     return tab_name
 
@@ -131,20 +143,24 @@ def get_archive_dates():
     return folders
 
 
-def _ask_claude(img_path, prompt):
-    """claude CLI subprocess로 이미지 분석"""
+def _ask_claude(img_path, prompt, text_path=None):
+    """claude CLI subprocess로 이미지+페이지텍스트 분석"""
     import subprocess
     with open(img_path, 'rb') as f:
         img_data = base64.standard_b64encode(f.read()).decode('ascii')
+
+    content = [
+        {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': img_data}},
+    ]
+    if text_path and os.path.exists(text_path):
+        with open(text_path, encoding='utf-8', errors='replace') as f:
+            page_text = f.read()[:8000]  # 토큰 절약
+        content.append({'type': 'text', 'text': f'[페이지 텍스트 원문]\n{page_text}'})
+    content.append({'type': 'text', 'text': prompt})
+
     payload = {
         'type': 'user',
-        'message': {
-            'role': 'user',
-            'content': [
-                {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': img_data}},
-                {'type': 'text', 'text': prompt},
-            ],
-        },
+        'message': {'role': 'user', 'content': content},
     }
     env = os.environ.copy()
     env['PYTHONIOENCODING'] = 'utf-8'
@@ -190,8 +206,9 @@ def generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab):
             '  혜택종류: 혜택상세\n\n'
             '혜택종류는 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서 선택하세요. 혜택이 여러 개면 줄을 나눠 작성하세요.'
         )
+        text_path = img_path.replace('_next_tab_full.png', '_page_text.txt')
         try:
-            summaries[brand] = _ask_claude(img_path, prompt)
+            summaries[brand] = _ask_claude(img_path, prompt, text_path)
             print(f'{brand} 요약 완료')
         except Exception as e:
             print(f'{brand} 요약 실패: {e}')

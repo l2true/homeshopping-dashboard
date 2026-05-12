@@ -557,7 +557,7 @@ def git_push(archive_date_dir):
     """캡처 결과를 GitHub에 자동 push"""
     import subprocess
     rel = os.path.relpath(archive_date_dir, BASE_DIR).replace('\\', '/')
-    files_to_add = [
+    candidates = [
         'index.html', 'promo_history.json',
         f'{rel}/hyundai_next_tab_full.png', f'{rel}/hyundai_banner.png', f'{rel}/hyundai_page_text.txt',
         f'{rel}/gs_next_tab_full.png',      f'{rel}/gs_banner.png',      f'{rel}/gs_page_text.txt',
@@ -565,6 +565,7 @@ def git_push(archive_date_dir):
         f'{rel}/lotte_next_tab_full.png',   f'{rel}/lotte_banner.png',   f'{rel}/lotte_page_text.txt',
         f'{rel}/summary.json',
     ]
+    files_to_add = [f for f in candidates if os.path.exists(os.path.join(BASE_DIR, f.replace('/', os.sep)))]
     cmds = [
         ['git', '-C', BASE_DIR, 'add', '--force'] + files_to_add,
         ['git', '-C', BASE_DIR, 'commit', '-m', f'Auto update: {TODAY}'],

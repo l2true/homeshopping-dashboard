@@ -15,11 +15,12 @@
     .date-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }
     .container { max-width: 1600px; margin: 20px auto 32px; padding: 0 24px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
     .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
-    .card-header { padding: 16px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #f0f0f0; }
+    .card-header { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; }
+    .card-header-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
     .logo { font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 8px; color: white; white-space: nowrap; }
     .logo.gs { background: #00863c; } .logo.cj { background: #e8003d; } .logo.lotte { background: #e60012; }
-    .card-header .title { font-size: 16px; font-weight: 700; }
-    .card-header .period { margin-left: auto; font-size: 12px; color: #888; background: #f5f5f5; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+    .promo-name { font-size: 16px; font-weight: 700; flex: 1; }
+    .promo-period { font-size: 12px; color: #fff; background: #ff6b35; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
     .card-body { display: flex; }
     .screenshot-wrap { width: 160px; min-width: 160px; border-right: 1px solid #f0f0f0; padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; background: #fafafa; }
     .screenshot-wrap p { font-size: 11px; color: #999; }
@@ -43,9 +44,11 @@
 <div class="container">
   <div class="card">
     <div class="card-header">
-      <span class="logo gs">GS SHOP</span>
-      <span class="title" id="gs-title">전문관</span>
-      <span class="period" id="gs-period">2026.05.12</span>
+      <div class="card-header-top">
+        <span class="logo gs">GS SHOP</span>
+        <span class="promo-name" id="gs-name">판타지브랜드 / 판타지스타 / 타임어택 / 99특가</span>
+      </div>
+      <span class="promo-period" id="gs-period">5/12(화) ~ 5/17(일)</span>
     </div>
     <div class="card-body">
       <div class="screenshot-wrap">
@@ -53,9 +56,7 @@
         <img id="gs-img" src="captures/2026-05-12/gs_next_tab_full.png" alt="GS SHOP" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
-      <div class="summary" id="gs-summary">기간: 5/12(화) ~ 5/17(일)
-프로모션명: 판타지브랜드 / 판타지스타 / 타임어택 / 99특가
-혜택:
+      <div class="summary" id="gs-summary">혜택:
   카드: 판타지브랜드 카드 10% 할인 (쿡셀 최대 80%, 제이슨우 최대 63%, 지오다노 최대 84%, 현대약품)
   적립: TV상품 구매 시 10% 적립, 최대 3만원
   특가: 12억 타임어택 매일 2회 진행, 1억 선착순 혜택
@@ -65,9 +66,11 @@
   </div>
   <div class="card">
     <div class="card-header">
-      <span class="logo cj">CJ온스타일</span>
-      <span class="title" id="cj-title">쿠폰런</span>
-      <span class="period" id="cj-period">2026.05.12</span>
+      <div class="card-header-top">
+        <span class="logo cj">CJ온스타일</span>
+        <span class="promo-name" id="cj-name">쿠폰런</span>
+      </div>
+      <span class="promo-period" id="cj-period">확인 불가</span>
     </div>
     <div class="card-body">
       <div class="screenshot-wrap">
@@ -75,17 +78,17 @@
         <img id="cj-img" src="captures/2026-05-12/cj_next_tab_full.png" alt="CJ온스타일" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
-      <div class="summary" id="cj-summary">기간: 확인 불가
-프로모션명: 쿠폰런
-혜택:
+      <div class="summary" id="cj-summary">혜택:
   쿠폰: 매일 오전 10시 선착순 ~20% 할인 쿠폰</div>
     </div>
   </div>
   <div class="card">
     <div class="card-header">
-      <span class="logo lotte">롯데홈쇼핑</span>
-      <span class="title" id="lotte-title">머데이</span>
-      <span class="period" id="lotte-period">2026.05.12</span>
+      <div class="card-header-top">
+        <span class="logo lotte">롯데홈쇼핑</span>
+        <span class="promo-name" id="lotte-name">메가쇼데이</span>
+      </div>
+      <span class="promo-period" id="lotte-period">5/11~12</span>
     </div>
     <div class="card-body">
       <div class="screenshot-wrap">
@@ -93,9 +96,7 @@
         <img id="lotte-img" src="captures/2026-05-12/lotte_next_tab_full.png" alt="롯데홈쇼핑" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
-      <div class="summary" id="lotte-summary">기간: 5/11~12
-프로모션명: 메가쇼데이
-혜택:
+      <div class="summary" id="lotte-summary">혜택:
   특가: 단 하루 특별 특가 (패션·뷰티·명품·가구·유아·스포츠·건강 전 카테고리)
   적립: 최대 12만 적립
   카드: 카드 7% 할인</div>
@@ -107,23 +108,33 @@
   <img id="modal-img" src="" alt="">
 </div>
 <script>
-  const summaries = {"2026-05-12": {"gs": "기간: 5/12(화) ~ 5/17(일)\n프로모션명: 판타지브랜드 / 판타지스타 / 타임어택 / 99특가\n혜택:\n  카드: 판타지브랜드 카드 10% 할인 (쿡셀 최대 80%, 제이슨우 최대 63%, 지오다노 최대 84%, 현대약품)\n  적립: TV상품 구매 시 10% 적립, 최대 3만원\n  특가: 12억 타임어택 매일 2회 진행, 1억 선착순 혜택\n  할인: 판타지스타 최대 50% 할인 (심플바이오 최대 70%, 시티브리즈 최대 70%)\n  특가: 99특가 매일 오전 10시 오픈런 (뷰티 5/13~14, 푸드 5/15~17)", "cj": "기간: 확인 불가\n프로모션명: 쿠폰런\n혜택:\n  쿠폰: 매일 오전 10시 선착순 ~20% 할인 쿠폰", "lotte": "기간: 5/11~12\n프로모션명: 메가쇼데이\n혜택:\n  특가: 단 하루 특별 특가 (패션·뷰티·명품·가구·유아·스포츠·건강 전 카테고리)\n  적립: 최대 12만 적립\n  카드: 카드 7% 할인"}};
-  const NO_SUMMARY = '캡처 완료 — 행사 내용은 위 이미지를 확인하세요';
-  function openModal(src) { document.getElementById('modal-img').src = src; document.getElementById('modal').classList.add('open'); }
-  function closeModal() { document.getElementById('modal').classList.remove('open'); }
+  const summaries = {"2026-05-12": {"gs": {"period": "5/12(화) ~ 5/17(일)", "name": "판타지브랜드 / 판타지스타 / 타임어택 / 99특가", "body": "혜택:\n  카드: 판타지브랜드 카드 10% 할인 (쿡셀 최대 80%, 제이슨우 최대 63%, 지오다노 최대 84%, 현대약품)\n  적립: TV상품 구매 시 10% 적립, 최대 3만원\n  특가: 12억 타임어택 매일 2회 진행, 1억 선착순 혜택\n  할인: 판타지스타 최대 50% 할인 (심플바이오 최대 70%, 시티브리즈 최대 70%)\n  특가: 99특가 매일 오전 10시 오픈런 (뷰티 5/13~14, 푸드 5/15~17)"}, "cj": {"period": "확인 불가", "name": "쿠폰런", "body": "혜택:\n  쿠폰: 매일 오전 10시 선착순 ~20% 할인 쿠폰"}, "lotte": {"period": "5/11~12", "name": "메가쇼데이", "body": "혜택:\n  특가: 단 하루 특별 특가 (패션·뷰티·명품·가구·유아·스포츠·건강 전 카테고리)\n  적립: 최대 12만 적립\n  카드: 카드 7% 할인"}}};
+  const NO_BODY = '캡처 완료 — 행사 내용은 위 이미지를 확인하세요';
+  function g(id) { return document.getElementById(id); }
+  function s(d) { return summaries[d] || {}; }
+  function sv(obj, key, fb) { return (obj[key] && typeof obj[key]==='object' ? obj[key].name||obj[key].period||obj[key].body : null) || (typeof obj[key]==='string' ? obj[key] : null) || fb; }
+  function sfield(obj, brand, field, fb) {
+    const b = obj[brand]; if (!b) return fb;
+    return (typeof b === 'object' ? b[field] : (field==='body'?b:'')) || fb;
+  }
+  function openModal(src) { g('modal-img').src = src; g('modal').classList.add('open'); }
+  function closeModal() { g('modal').classList.remove('open'); }
   function switchDate(d) {
-    document.getElementById('gs-img').src    = 'captures/' + d + '/gs_next_tab_full.png';
-    document.getElementById('cj-img').src    = 'captures/' + d + '/cj_next_tab_full.png';
-    document.getElementById('lotte-img').src = 'captures/' + d + '/lotte_next_tab_full.png';
-    document.getElementById('gs-period').textContent    = d;
-    document.getElementById('cj-period').textContent    = d;
-    document.getElementById('lotte-period').textContent = d;
-    document.getElementById('header-date').textContent  = '기준일: ' + d;
+    const obj = s(d);
+    g('gs-img').src    = 'captures/' + d + '/gs_next_tab_full.png';
+    g('cj-img').src    = 'captures/' + d + '/cj_next_tab_full.png';
+    g('lotte-img').src = 'captures/' + d + '/lotte_next_tab_full.png';
+    g('gs-name').textContent    = sfield(obj,'gs','name','GS SHOP');
+    g('cj-name').textContent    = sfield(obj,'cj','name','CJ온스타일');
+    g('lotte-name').textContent = sfield(obj,'lotte','name','롯데홈쇼핑');
+    g('gs-period').textContent    = sfield(obj,'gs','period',d);
+    g('cj-period').textContent    = sfield(obj,'cj','period',d);
+    g('lotte-period').textContent = sfield(obj,'lotte','period',d);
+    g('gs-summary').textContent    = sfield(obj,'gs','body',NO_BODY);
+    g('cj-summary').textContent    = sfield(obj,'cj','body',NO_BODY);
+    g('lotte-summary').textContent = sfield(obj,'lotte','body',NO_BODY);
+    g('header-date').textContent = '기준일: ' + d;
     document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.textContent === d));
-    const s = summaries[d] || {};
-    document.getElementById('gs-summary').textContent    = s.gs    || NO_SUMMARY;
-    document.getElementById('cj-summary').textContent    = s.cj    || NO_SUMMARY;
-    document.getElementById('lotte-summary').textContent = s.lotte  || NO_SUMMARY;
   }
 </script>
 </body>

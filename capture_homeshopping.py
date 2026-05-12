@@ -32,6 +32,28 @@ def close_popups(page):
         except: pass
 
 
+def close_popups_gs(page):
+    """GS SHOP 전용 팝업 닫기"""
+    close_popups(page)
+    try:
+        page.keyboard.press('Escape')
+        page.wait_for_timeout(500)
+    except: pass
+    for sel in ['.pop-close', '.btn-close', '.close-btn', '.ly-close',
+                '[class*=close]', '[class*=popup] [class*=close]',
+                'button:has-text("닫기")', 'button:has-text("오늘 하루 안보기")']:
+        try:
+            for btn in page.locator(sel).all():
+                if btn.is_visible():
+                    btn.click(timeout=1000)
+                    page.wait_for_timeout(300)
+        except: pass
+    try:
+        page.locator('.dimmed, .dim, .overlay, .bg-dim').first.click(timeout=1000)
+        page.wait_for_timeout(300)
+    except: pass
+
+
 def click_next_tab(page):
     """홈 탭 오른쪽 탭 클릭"""
     return page.evaluate("""
@@ -51,31 +73,6 @@ def click_next_tab(page):
 def capture_full(page, path):
     page.screenshot(path=path, full_page=True)
     return path
-
-
-def close_popups_gs(page):
-    """GS SHOP 전용 팝업 닫기"""
-    # 공통 닫기 먼저
-    close_popups(page)
-    # GS 특유의 웰컴/이벤트 팝업: ESC 또는 레이어 외부 클릭
-    try:
-        page.keyboard.press('Escape')
-        page.wait_for_timeout(500)
-    except: pass
-    for sel in ['.pop-close', '.btn-close', '.close-btn', '.ly-close',
-                '[class*=close]', '[class*=popup] [class*=close]',
-                'button:has-text("닫기")', 'button:has-text("오늘 하루 안보기")']:
-        try:
-            for btn in page.locator(sel).all():
-                if btn.is_visible():
-                    btn.click(timeout=1000)
-                    page.wait_for_timeout(300)
-        except: pass
-    # 팝업 레이어 뒤 배경 클릭으로 닫기 시도
-    try:
-        page.locator('.dimmed, .dim, .overlay, .bg-dim').first.click(timeout=1000)
-        page.wait_for_timeout(300)
-    except: pass
 
 
 def save_page_text(page, path):
@@ -154,7 +151,7 @@ def _ask_claude(img_path, prompt, text_path=None):
     ]
     if text_path and os.path.exists(text_path):
         with open(text_path, encoding='utf-8', errors='replace') as f:
-            page_text = f.read()[:8000]  # 토큰 절약
+            page_text = f.read()[:8000]
         content.append({'type': 'text', 'text': f'[페이지 텍스트 원문]\n{page_text}'})
     content.append({'type': 'text', 'text': prompt})
 
@@ -179,6 +176,19 @@ def _ask_claude(img_path, prompt, text_path=None):
     return ''
 
 
+def parse_summary_text(text):
+    """요약 텍스트에서 기간/프로모션명/혜택 본문 분리"""
+    period, name, body_lines = '', '', []
+    for line in text.strip().splitlines():
+        if line.startswith('기간:'):
+            period = line[3:].strip()
+        elif line.startswith('프로모션명:'):
+            name = line[6:].strip()
+        else:
+            body_lines.append(line)
+    return {'period': period, 'name': name, 'body': '\n'.join(body_lines).strip()}
+
+
 def generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab):
     """캡처 이미지를 claude CLI로 분석해 행사 요약 생성"""
     summaries = {}
@@ -189,30 +199,30 @@ def generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab):
     ]:
         img_path = os.path.join(archive_date_dir, filename)
         if not os.path.exists(img_path):
-            summaries[brand] = '이미지 없음'
+            summaries[brand] = {'period': '', 'name': '', 'body': '이미지 없음'}
             continue
         prompt = (
             f'{label} 홈쇼핑 모바일 캡처본입니다. '
-            '이미지에서 확인되는 행사 정보를 아래 형식으로 정리해주세요.\n\n'
+            '텍스트 원문을 우선 참고하고, 이미지는 시각적 구성 파악에 활용해주세요.\n\n'
             '규칙:\n'
             '- **, ##, --- 등 마크다운 기호 절대 사용 금지\n'
-            '- 이미지 해상도, 판독 어려움 등 부연 설명 추가 금지\n'
+            '- 부연 설명, 안내 문구 추가 금지\n'
             '- 확인되지 않는 항목은 행 자체를 생략\n\n'
             '형식:\n'
             '기간: (행사 기간)\n'
             '프로모션명: (행사/기획전 이름)\n'
             '혜택:\n'
-            '  혜택종류: 혜택상세\n'
             '  혜택종류: 혜택상세\n\n'
             '혜택종류는 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서 선택하세요. 혜택이 여러 개면 줄을 나눠 작성하세요.'
         )
         text_path = img_path.replace('_next_tab_full.png', '_page_text.txt')
         try:
-            summaries[brand] = _ask_claude(img_path, prompt, text_path)
+            raw = _ask_claude(img_path, prompt, text_path)
+            summaries[brand] = parse_summary_text(raw)
             print(f'{brand} 요약 완료')
         except Exception as e:
             print(f'{brand} 요약 실패: {e}')
-            summaries[brand] = '요약 생성 실패'
+            summaries[brand] = {'period': '', 'name': '', 'body': '요약 생성 실패'}
 
     summary_path = os.path.join(archive_date_dir, 'summary.json')
     with open(summary_path, 'w', encoding='utf-8') as f:
@@ -220,8 +230,14 @@ def generate_summary(archive_date_dir, gs_tab, cj_tab, lotte_tab):
     return summaries
 
 
+def _s(brand_data, key, fallback=''):
+    """summary dict 또는 구버전 string 에서 값 추출"""
+    if isinstance(brand_data, dict):
+        return brand_data.get(key, fallback)
+    return fallback if key != 'body' else str(brand_data)
+
+
 def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
-    # Load summaries for all archived dates
     all_summaries = {}
     for d in archive_dates:
         sp = os.path.join(ARCHIVE_DIR, d, 'summary.json')
@@ -232,10 +248,17 @@ def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
     summaries_js = json.dumps(all_summaries, ensure_ascii=False)
     latest = archive_dates[0] if archive_dates else TODAY_KEY
     latest_s = all_summaries.get(latest, {})
-    no_summary = '캡처 완료 — 행사 내용은 위 이미지를 확인하세요'
-    gs_summary_txt    = latest_s.get('gs',    no_summary)
-    cj_summary_txt    = latest_s.get('cj',    no_summary)
-    lotte_summary_txt = latest_s.get('lotte', no_summary)
+
+    no_body = '캡처 완료 — 행사 내용은 위 이미지를 확인하세요'
+    gs_name    = _s(latest_s.get('gs',    {}), 'name',   gs_tab    or 'GS SHOP')
+    cj_name    = _s(latest_s.get('cj',    {}), 'name',   cj_tab    or 'CJ온스타일')
+    lotte_name = _s(latest_s.get('lotte', {}), 'name',   lotte_tab or '롯데홈쇼핑')
+    gs_period    = _s(latest_s.get('gs',    {}), 'period', TODAY)
+    cj_period    = _s(latest_s.get('cj',    {}), 'period', TODAY)
+    lotte_period = _s(latest_s.get('lotte', {}), 'period', TODAY)
+    gs_body    = _s(latest_s.get('gs',    {}), 'body',   no_body)
+    cj_body    = _s(latest_s.get('cj',    {}), 'body',   no_body)
+    lotte_body = _s(latest_s.get('lotte', {}), 'body',   no_body)
 
     date_nav_items = '\n'.join(
         f'<button class="date-btn{" active" if d == latest else ""}" onclick="switchDate(\'{d}\')">{d}</button>'
@@ -259,11 +282,12 @@ def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
     .date-btn.active {{ background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }}
     .container {{ max-width: 1600px; margin: 20px auto 32px; padding: 0 24px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }}
     .card {{ background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }}
-    .card-header {{ padding: 16px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #f0f0f0; }}
+    .card-header {{ padding: 14px 20px; border-bottom: 1px solid #f0f0f0; }}
+    .card-header-top {{ display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }}
     .logo {{ font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 8px; color: white; white-space: nowrap; }}
     .logo.gs {{ background: #00863c; }} .logo.cj {{ background: #e8003d; }} .logo.lotte {{ background: #e60012; }}
-    .card-header .title {{ font-size: 16px; font-weight: 700; }}
-    .card-header .period {{ margin-left: auto; font-size: 12px; color: #888; background: #f5f5f5; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }}
+    .promo-name {{ font-size: 16px; font-weight: 700; flex: 1; }}
+    .promo-period {{ font-size: 12px; color: #fff; background: #ff6b35; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }}
     .card-body {{ display: flex; }}
     .screenshot-wrap {{ width: 160px; min-width: 160px; border-right: 1px solid #f0f0f0; padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; background: #fafafa; }}
     .screenshot-wrap p {{ font-size: 11px; color: #999; }}
@@ -287,9 +311,11 @@ def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
 <div class="container">
   <div class="card">
     <div class="card-header">
-      <span class="logo gs">GS SHOP</span>
-      <span class="title" id="gs-title">{gs_tab or '홈 다음 탭'}</span>
-      <span class="period" id="gs-period">{TODAY}</span>
+      <div class="card-header-top">
+        <span class="logo gs">GS SHOP</span>
+        <span class="promo-name" id="gs-name">{gs_name}</span>
+      </div>
+      <span class="promo-period" id="gs-period">{gs_period}</span>
     </div>
     <div class="card-body">
       <div class="screenshot-wrap">
@@ -297,14 +323,16 @@ def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
         <img id="gs-img" src="captures/{latest}/gs_next_tab_full.png" alt="GS SHOP" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
-      <div class="summary" id="gs-summary">{gs_summary_txt}</div>
+      <div class="summary" id="gs-summary">{gs_body}</div>
     </div>
   </div>
   <div class="card">
     <div class="card-header">
-      <span class="logo cj">CJ온스타일</span>
-      <span class="title" id="cj-title">{cj_tab or '홈 다음 탭'}</span>
-      <span class="period" id="cj-period">{TODAY}</span>
+      <div class="card-header-top">
+        <span class="logo cj">CJ온스타일</span>
+        <span class="promo-name" id="cj-name">{cj_name}</span>
+      </div>
+      <span class="promo-period" id="cj-period">{cj_period}</span>
     </div>
     <div class="card-body">
       <div class="screenshot-wrap">
@@ -312,14 +340,16 @@ def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
         <img id="cj-img" src="captures/{latest}/cj_next_tab_full.png" alt="CJ온스타일" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
-      <div class="summary" id="cj-summary">{cj_summary_txt}</div>
+      <div class="summary" id="cj-summary">{cj_body}</div>
     </div>
   </div>
   <div class="card">
     <div class="card-header">
-      <span class="logo lotte">롯데홈쇼핑</span>
-      <span class="title" id="lotte-title">{lotte_tab or '홈 다음 탭'}</span>
-      <span class="period" id="lotte-period">{TODAY}</span>
+      <div class="card-header-top">
+        <span class="logo lotte">롯데홈쇼핑</span>
+        <span class="promo-name" id="lotte-name">{lotte_name}</span>
+      </div>
+      <span class="promo-period" id="lotte-period">{lotte_period}</span>
     </div>
     <div class="card-body">
       <div class="screenshot-wrap">
@@ -327,7 +357,7 @@ def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
         <img id="lotte-img" src="captures/{latest}/lotte_next_tab_full.png" alt="롯데홈쇼핑" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
-      <div class="summary" id="lotte-summary">{lotte_summary_txt}</div>
+      <div class="summary" id="lotte-summary">{lotte_body}</div>
     </div>
   </div>
 </div>
@@ -337,22 +367,32 @@ def update_html(gs_tab, cj_tab, lotte_tab, archive_dates):
 </div>
 <script>
   const summaries = {summaries_js};
-  const NO_SUMMARY = '캡처 완료 — 행사 내용은 위 이미지를 확인하세요';
-  function openModal(src) {{ document.getElementById('modal-img').src = src; document.getElementById('modal').classList.add('open'); }}
-  function closeModal() {{ document.getElementById('modal').classList.remove('open'); }}
+  const NO_BODY = '캡처 완료 — 행사 내용은 위 이미지를 확인하세요';
+  function g(id) {{ return document.getElementById(id); }}
+  function s(d) {{ return summaries[d] || {{}}; }}
+  function sv(obj, key, fb) {{ return (obj[key] && typeof obj[key]==='object' ? obj[key].name||obj[key].period||obj[key].body : null) || (typeof obj[key]==='string' ? obj[key] : null) || fb; }}
+  function sfield(obj, brand, field, fb) {{
+    const b = obj[brand]; if (!b) return fb;
+    return (typeof b === 'object' ? b[field] : (field==='body'?b:'')) || fb;
+  }}
+  function openModal(src) {{ g('modal-img').src = src; g('modal').classList.add('open'); }}
+  function closeModal() {{ g('modal').classList.remove('open'); }}
   function switchDate(d) {{
-    document.getElementById('gs-img').src    = 'captures/' + d + '/gs_next_tab_full.png';
-    document.getElementById('cj-img').src    = 'captures/' + d + '/cj_next_tab_full.png';
-    document.getElementById('lotte-img').src = 'captures/' + d + '/lotte_next_tab_full.png';
-    document.getElementById('gs-period').textContent    = d;
-    document.getElementById('cj-period').textContent    = d;
-    document.getElementById('lotte-period').textContent = d;
-    document.getElementById('header-date').textContent  = '기준일: ' + d;
+    const obj = s(d);
+    g('gs-img').src    = 'captures/' + d + '/gs_next_tab_full.png';
+    g('cj-img').src    = 'captures/' + d + '/cj_next_tab_full.png';
+    g('lotte-img').src = 'captures/' + d + '/lotte_next_tab_full.png';
+    g('gs-name').textContent    = sfield(obj,'gs','name','GS SHOP');
+    g('cj-name').textContent    = sfield(obj,'cj','name','CJ온스타일');
+    g('lotte-name').textContent = sfield(obj,'lotte','name','롯데홈쇼핑');
+    g('gs-period').textContent    = sfield(obj,'gs','period',d);
+    g('cj-period').textContent    = sfield(obj,'cj','period',d);
+    g('lotte-period').textContent = sfield(obj,'lotte','period',d);
+    g('gs-summary').textContent    = sfield(obj,'gs','body',NO_BODY);
+    g('cj-summary').textContent    = sfield(obj,'cj','body',NO_BODY);
+    g('lotte-summary').textContent = sfield(obj,'lotte','body',NO_BODY);
+    g('header-date').textContent = '기준일: ' + d;
     document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.textContent === d));
-    const s = summaries[d] || {{}};
-    document.getElementById('gs-summary').textContent    = s.gs    || NO_SUMMARY;
-    document.getElementById('cj-summary').textContent    = s.cj    || NO_SUMMARY;
-    document.getElementById('lotte-summary').textContent = s.lotte  || NO_SUMMARY;
   }}
 </script>
 </body>
@@ -372,6 +412,9 @@ def git_push(archive_date_dir):
         f'{rel}/gs_next_tab_full.png',
         f'{rel}/cj_next_tab_full.png',
         f'{rel}/lotte_next_tab_full.png',
+        f'{rel}/gs_page_text.txt',
+        f'{rel}/cj_page_text.txt',
+        f'{rel}/lotte_page_text.txt',
         f'{rel}/summary.json',
     ]
     cmds = [

@@ -6,7 +6,7 @@ google_credentials.json
 __pycache__/
 *.pyc
 *.py
-!daily_capture.py
+!capture_homeshopping.py
 
 # 임시/분석 파일
 *.txt

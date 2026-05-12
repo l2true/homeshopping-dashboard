@@ -90,62 +90,63 @@ def get_archive_dates():
     return folders
 
 
+def _ask_claude(img_path, prompt):
+    """claude CLI subprocess로 이미지 분석"""
+    import subprocess
+    with open(img_path, 'rb') as f:
+        img_data = base64.standard_b64encode(f.read()).decode('ascii')
+    payload = {
+        'type': 'user',
+        'message': {
+            'role': 'user',
+            'content': [
+                {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': img_data}},
+                {'type': 'text', 'text': prompt},
+            ],
+        },
+    }
+    env = os.environ.copy()
+    env['PYTHONIOENCODING'] = 'utf-8'
+    proc = subprocess.run(
+        ['claude', '-p', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'],
+        input=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
+        capture_output=True, env=env, timeout=120,
+    )
+    for line in proc.stdout.decode('utf-8', errors='replace').splitlines():
+        try:
+            obj = json.loads(line)
+            if obj.get('type') == 'result':
+                return obj.get('result', '').strip()
+        except:
+            pass
+    return ''
+
+
 def generate_summary(archive_date_dir, cj_tab, lotte_tab):
-    """Claude API로 캡처 이미지 분석 → 행사 요약 (ANTHROPIC_API_KEY 필요)"""
-    try:
-        import anthropic
-    except ImportError:
-        print('anthropic 미설치, 요약 건너뜀. pip install anthropic')
-        return {}
-
-    api_key = os.environ.get('ANTHROPIC_API_KEY')
-    if not api_key:
-        print('ANTHROPIC_API_KEY 없음, 요약 건너뜀')
-        return {}
-
-    client = anthropic.Anthropic()
+    """캡처 이미지를 claude CLI로 분석해 행사 요약 생성"""
     summaries = {}
-
     for brand, filename, label in [
-        ('cj',    'cj_next_tab_full.png',    cj_tab    or 'CJ온스타일'),
-        ('lotte', 'lotte_next_tab_full.png',  lotte_tab or '롯데홈쇼핑'),
+        ('cj',    'cj_next_tab_full.png',   cj_tab    or 'CJ온스타일'),
+        ('lotte', 'lotte_next_tab_full.png', lotte_tab or '롯데홈쇼핑'),
     ]:
         img_path = os.path.join(archive_date_dir, filename)
         if not os.path.exists(img_path):
             summaries[brand] = '이미지 없음'
             continue
-
-        with open(img_path, 'rb') as f:
-            img_data = base64.standard_b64encode(f.read()).decode('utf-8')
-
-        resp = client.messages.create(
-            model='claude-haiku-4-5-20251001',
-            max_tokens=1024,
-            messages=[{
-                'role': 'user',
-                'content': [
-                    {
-                        'type': 'image',
-                        'source': {'type': 'base64', 'media_type': 'image/png', 'data': img_data},
-                    },
-                    {
-                        'type': 'text',
-                        'text': (
-                            f'이 이미지는 {label} 탭의 모바일 홈쇼핑 캡처본입니다. '
-                            '현재 진행 중인 주요 행사, 특가 상품, 기획전 등을 한국어로 간략히 요약해주세요. '
-                            '3~5줄 이내로 핵심 내용만 정리해주세요.'
-                        ),
-                    },
-                ],
-            }],
+        prompt = (
+            f'{label} 홈쇼핑 모바일 캡처본입니다. '
+            '현재 진행 중인 주요 행사, 특가 상품, 기획전을 한국어로 3~5줄로 요약해주세요.'
         )
-        summaries[brand] = resp.content[0].text
-        print(f'{brand} 요약 완료')
+        try:
+            summaries[brand] = _ask_claude(img_path, prompt)
+            print(f'{brand} 요약 완료')
+        except Exception as e:
+            print(f'{brand} 요약 실패: {e}')
+            summaries[brand] = '요약 생성 실패'
 
     summary_path = os.path.join(archive_date_dir, 'summary.json')
     with open(summary_path, 'w', encoding='utf-8') as f:
         json.dump(summaries, f, ensure_ascii=False, indent=2)
-
     return summaries
 
 

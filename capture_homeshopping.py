@@ -131,7 +131,7 @@ def run_hyundai(browser, archive_dir):
 def run_gs(browser, archive_dir):
     """GS SHOP 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
-    page.goto('https://m.gsshop.com', wait_until='load', timeout=30000)
+    page.goto('https://m.gsshop.com', wait_until='domcontentloaded', timeout=60000)
     page.wait_for_timeout(3000)
     close_popups_gs(page)
     page.wait_for_timeout(1000)
@@ -149,7 +149,7 @@ def run_gs(browser, archive_dir):
 def run_cj(browser, archive_dir):
     """CJ온스타일 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
-    page.goto('https://display.cjonstyle.com/m/homeTab/main?hmtabMenuId=H00005', wait_until='load', timeout=30000)
+    page.goto('https://display.cjonstyle.com/m/homeTab/main?hmtabMenuId=H00005', wait_until='domcontentloaded', timeout=60000)
     page.wait_for_timeout(3000)
     close_popups(page)
     tab_name = click_next_tab(page)
@@ -165,7 +165,7 @@ def run_cj(browser, archive_dir):
 def run_lotte(browser, archive_dir):
     """롯데홈쇼핑 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
-    page.goto('https://m.lotteimall.com', wait_until='load', timeout=30000)
+    page.goto('https://m.lotteimall.com', wait_until='domcontentloaded', timeout=60000)
     page.wait_for_timeout(3000)
     close_popups(page)
     tab_name = click_next_tab(page)
@@ -600,27 +600,47 @@ def git_push(archive_date_dir):
 
 
 if __name__ == '__main__':
-    print(f'[{TODAY}] 홈쇼핑 자동 캡처 시작...')
+    import sys
+    # 로그 파일로도 출력 (작업 스케줄러 실행 시 stdout 확인용)
+    log_path = os.path.join(BASE_DIR, 'capture_log.txt')
+    log_f = open(log_path, 'a', encoding='utf-8')
+    class Tee:
+        def write(self, msg):
+            sys.__stdout__.write(msg)
+            log_f.write(msg)
+        def flush(self):
+            sys.__stdout__.flush()
+            log_f.flush()
+    sys.stdout = Tee()
+
+    print(f'\n[{TODAY}] 홈쇼핑 자동 캡처 시작...')
 
     archive_date_dir = os.path.join(ARCHIVE_DIR, TODAY_KEY)
     os.makedirs(archive_date_dir, exist_ok=True)
 
+    hyundai_tab = gs_tab = cj_tab = lotte_tab = None
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        hyundai_tab = run_hyundai(browser, archive_date_dir)
-        print(f'현대 완료: {hyundai_tab}')
-        gs_tab = run_gs(browser, archive_date_dir)
-        print(f'GS 완료: {gs_tab}')
-        cj_tab = run_cj(browser, archive_date_dir)
-        print(f'CJ 완료: {cj_tab}')
-        lotte_tab = run_lotte(browser, archive_date_dir)
-        print(f'롯데 완료: {lotte_tab}')
+        browser = p.chromium.launch(headless=True)
+        for name, func in [('현대', run_hyundai), ('GS', run_gs), ('CJ', run_cj), ('롯데', run_lotte)]:
+            try:
+                tab = func(browser, archive_date_dir)
+                print(f'{name} 완료: {tab}')
+                if name == '현대': hyundai_tab = tab
+                elif name == 'GS': gs_tab = tab
+                elif name == 'CJ': cj_tab = tab
+                elif name == '롯데': lotte_tab = tab
+            except Exception as e:
+                print(f'{name} 캡처 실패: {e}')
         browser.close()
 
     print('AI 요약 생성 중...')
-    generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab)
+    try:
+        generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab)
+    except Exception as e:
+        print(f'요약 실패: {e}')
 
     archive_dates = get_archive_dates()
     update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates)
     git_push(archive_date_dir)
     print('전체 완료! GitHub Pages 자동 업데이트됨')
+    log_f.close()

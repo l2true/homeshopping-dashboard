@@ -362,28 +362,40 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
     return summaries
 
 
+def _normalize_date(s):
+    """날짜 문자열을 M/DD 형식으로 정규화
+    입력 예: '05-12', '5.12', '5/12', '2026-05-12' → '5/12'
+    """
+    import re
+    s = s.strip()
+    # YYYY-MM-DD 또는 YYYY.MM.DD
+    m = re.fullmatch(r'\d{4}[-./](\d{1,2})[-./](\d{1,2})', s)
+    if m:
+        return f'{int(m.group(1))}/{m.group(2).zfill(2)}'
+    # MM-DD 또는 MM.DD 또는 M/DD 등
+    m = re.fullmatch(r'(\d{1,2})[-./](\d{1,2})', s)
+    if m:
+        return f'{int(m.group(1))}/{m.group(2).zfill(2)}'
+    return s
+
+
 def _extract_end_date(period):
     """기간 문자열에서 끝날짜만 추출 (숫자가 포함된 경우만 유효로 판단)"""
     import re
-    # ~ 또는 - 로 구분된 마지막 부분 추출
     if '~' in period:
         end = period.split('~')[-1].strip()
     elif ' - ' in period or '–' in period:
         end = re.split(r' - |–', period)[-1].strip()
     else:
         return None
-    # 날짜처럼 보이는 경우만 유효 (M/DD, M.DD, YYYY-MM-DD 등)
     if re.search(r'\d{1,4}[./-]\d{1,2}', end):
-        return end
+        return _normalize_date(end)
     return None
 
 
 def _fmt_start(start_iso):
     """YYYY-MM-DD → M/DD 형식으로 변환"""
-    parts = start_iso.split('-')
-    if len(parts) == 3:
-        return f'{int(parts[1])}/{parts[2]}'
-    return start_iso
+    return _normalize_date(start_iso)
 
 
 def _s(brand_data, key, fallback=''):
@@ -393,10 +405,20 @@ def _s(brand_data, key, fallback=''):
     if key == 'period':
         start = brand_data.get('start', '')
         period = brand_data.get('period', '')
+        import re
         end = _extract_end_date(period) if period else None
+        # AI가 시작일도 알고 있으면(period에 ~ 앞부분이 날짜이면) 그대로 사용
+        period_has_start = bool(period and '~' in period and re.search(r'\d{1,4}[./-]\d{1,2}', period.split('~')[0]))
+        if period_has_start and end:
+            ai_start = _normalize_date(period.split('~')[0].strip())
+            return f'{ai_start} ~ {end}'
+        # AI가 시작일 모르면 tracking start + AI 끝날짜
         if start and end:
             return f'{_fmt_start(start)} ~ {end}'
-        elif start:
+        # 끝날짜도 없으면: period가 "매주 화요일" 같은 텍스트이면 그대로, 아니면 start
+        if period and not re.fullmatch(r'[\d./-]+', period.strip()):
+            return period  # 텍스트 형태 기간은 그대로
+        if start:
             return _fmt_start(start)
         return period or fallback
     return brand_data.get(key, fallback)

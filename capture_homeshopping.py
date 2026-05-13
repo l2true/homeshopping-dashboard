@@ -591,6 +591,14 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     else if (period.includes('–')) end = period.split('–').pop().trim();
     return /[0-9]{1,4}[./-][0-9]{1,2}/.test(end) ? end : null;
   }}
+  function normDate(s) {{
+    s = s.trim();
+    let m = s.match(/^([0-9]{{4}})[./-]([0-9]{{1,2}})[./-]([0-9]{{1,2}})$/);
+    if (m) return parseInt(m[2]) + '/' + m[3].padStart(2,'0');
+    m = s.match(/^([0-9]{{1,2}})[./-]([0-9]{{1,2}})$/);
+    if (m) return parseInt(m[1]) + '/' + m[2].padStart(2,'0');
+    return s;
+  }}
   function sfield(obj, brand, field, fb) {{
     const b = obj[brand]; if (!b) return fb;
     if (typeof b !== 'object') return field==='body' ? b : fb;
@@ -598,7 +606,16 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
       const start = b.start || '';
       const period = b.period || '';
       const end = period ? extractEnd(period) : null;
+      // AI가 시작일도 알면(period에 ~ 앞이 날짜이면) 그대로 사용
+      if (period && period.includes('~')) {{
+        const beforeTilde = period.split('~')[0].trim();
+        if (/[0-9]{{1,4}}[./-][0-9]{{1,2}}/.test(beforeTilde) && end) {{
+          return normDate(beforeTilde) + ' ~ ' + end;
+        }}
+      }}
       if (start && end) return fmtStart(start) + ' ~ ' + end;
+      // 텍스트 기간(매주 화요일 등)이면 그대로
+      if (period && !/^[0-9./ -]+$/.test(period.trim())) return period;
       if (start) return fmtStart(start);
       return period || fb;
     }}

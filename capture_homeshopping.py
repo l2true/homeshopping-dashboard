@@ -359,6 +359,15 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
     summary_path = os.path.join(archive_date_dir, 'summary.json')
     with open(summary_path, 'w', encoding='utf-8') as f:
         json.dump(summaries, f, ensure_ascii=False, indent=2)
+
+    # 배너 크롭은 날짜 파악용으로만 사용 → 요약 완료 후 삭제
+    for banner in glob.glob(os.path.join(archive_date_dir, '*_banner.png')):
+        try:
+            os.remove(banner)
+            print(f'배너 삭제: {os.path.basename(banner)}')
+        except Exception as e:
+            print(f'배너 삭제 실패: {e}')
+
     return summaries
 
 

@@ -642,11 +642,26 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     g('gs-name').textContent      = sfield(obj,'gs','name','GS SHOP');
     g('cj-name').textContent      = sfield(obj,'cj','name','CJ온스타일');
     g('lotte-name').textContent   = sfield(obj,'lotte','name','롯데홈쇼핑');
-    const hp = g('hyundai-period'); if (hp) hp.textContent = sfield(obj,'hyundai','period',d);
+    // 현대 행사 없음 여부에 따라 카드 스타일 토글
+    const hyundaiName = sfield(obj,'hyundai','name','');
+    const noEvent = hyundaiName === '해당없음';
+    const hyundaiCard = g('hyundai-name').closest('.card');
+    if (hyundaiCard) hyundaiCard.classList.toggle('no-event', noEvent);
+    // 현대 기간 배지: 행사 없음이면 텍스트/색상 변경
+    const periodEl = g('hyundai-period');
+    if (periodEl) {{
+      if (noEvent) {{
+        periodEl.textContent = '행사 없음';
+        periodEl.style.background = '#bbb';
+      }} else {{
+        periodEl.textContent = sfield(obj,'hyundai','period',d);
+        periodEl.style.background = '';
+      }}
+    }}
     g('gs-period').textContent    = sfield(obj,'gs','period',d);
     g('cj-period').textContent    = sfield(obj,'cj','period',d);
     g('lotte-period').textContent = sfield(obj,'lotte','period',d);
-    g('hyundai-summary').textContent = sfield(obj,'hyundai','body',NO_BODY);
+    g('hyundai-summary').textContent = noEvent ? '' : sfield(obj,'hyundai','body',NO_BODY);
     g('gs-summary').textContent      = sfield(obj,'gs','body',NO_BODY);
     g('cj-summary').textContent      = sfield(obj,'cj','body',NO_BODY);
     g('lotte-summary').textContent   = sfield(obj,'lotte','body',NO_BODY);

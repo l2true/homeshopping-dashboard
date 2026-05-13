@@ -335,6 +335,11 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '프로모션명: (메인 행사명 하나만, 서브 행사명 나열 금지)\n'
             '혜택:\n'
             '  혜택종류: 혜택상세\n\n'
+            '기간 작성 규칙:\n'
+            '- 반드시 "M/DD ~ M/DD" 형식으로 작성 (예: 5/13 ~ 5/17)\n'
+            '- 종료일만 알면 "~ M/DD" 형식으로 작성\n'
+            '- 날짜를 전혀 확인할 수 없으면 기간 행 자체를 생략\n'
+            '- "상반기", "기간 미확인" 등 모호한 표현 절대 금지\n\n'
             '혜택종류는 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서 선택하세요.\n'
             '혜택상세에는 혜택 내용과 함께 적용 조건(카드사명, 선착순 인원, 최대 금액, 기간 등)도 함께 적어주세요.\n'
             '혜택이 여러 개면 줄을 나눠 작성하세요.'
@@ -357,19 +362,43 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
     return summaries
 
 
+def _extract_end_date(period):
+    """기간 문자열에서 끝날짜만 추출 (숫자가 포함된 경우만 유효로 판단)"""
+    import re
+    # ~ 또는 - 로 구분된 마지막 부분 추출
+    if '~' in period:
+        end = period.split('~')[-1].strip()
+    elif ' - ' in period or '–' in period:
+        end = re.split(r' - |–', period)[-1].strip()
+    else:
+        return None
+    # 날짜처럼 보이는 경우만 유효 (M/DD, M.DD, YYYY-MM-DD 등)
+    if re.search(r'\d{1,4}[./-]\d{1,2}', end):
+        return end
+    return None
+
+
+def _fmt_start(start_iso):
+    """YYYY-MM-DD → M/DD 형식으로 변환"""
+    parts = start_iso.split('-')
+    if len(parts) == 3:
+        return f'{int(parts[1])}/{parts[2]}'
+    return start_iso
+
+
 def _s(brand_data, key, fallback=''):
     """summary dict 또는 구버전 string 에서 값 추출"""
     if not isinstance(brand_data, dict):
         return fallback if key != 'body' else str(brand_data)
     if key == 'period':
-        # start가 있으면 "시작일 ~ 페이지표시기간" 형태로 조합
         start = brand_data.get('start', '')
         period = brand_data.get('period', '')
-        if start and period:
-            # 페이지 기간에서 끝날짜만 추출 (~ 이후)
-            end = period.split('~')[-1].strip() if '~' in period else period
-            return f'{start} ~ {end}'
-        return start or period or fallback
+        end = _extract_end_date(period) if period else None
+        if start and end:
+            return f'{_fmt_start(start)} ~ {end}'
+        elif start:
+            return _fmt_start(start)
+        return period or fallback
     return brand_data.get(key, fallback)
 
 
@@ -530,17 +559,26 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
   function g(id) {{ return document.getElementById(id); }}
   function s(d) {{ return summaries[d] || {{}}; }}
   function sv(obj, key, fb) {{ return (obj[key] && typeof obj[key]==='object' ? obj[key].name||obj[key].period||obj[key].body : null) || (typeof obj[key]==='string' ? obj[key] : null) || fb; }}
+  function fmtStart(iso) {{
+    const p = iso.split('-'); return p.length===3 ? parseInt(p[1])+'/'+p[2] : iso;
+  }}
+  function extractEnd(period) {{
+    let end = '';
+    if (period.includes('~')) end = period.split('~').pop().trim();
+    else if (period.includes(' - ')) end = period.split(' - ').pop().trim();
+    else if (period.includes('–')) end = period.split('–').pop().trim();
+    return /[0-9]{1,4}[./-][0-9]{1,2}/.test(end) ? end : null;
+  }}
   function sfield(obj, brand, field, fb) {{
     const b = obj[brand]; if (!b) return fb;
     if (typeof b !== 'object') return field==='body' ? b : fb;
     if (field === 'period') {{
       const start = b.start || '';
       const period = b.period || '';
-      if (start && period) {{
-        const end = period.includes('~') ? period.split('~').pop().trim() : period;
-        return start + ' ~ ' + end;
-      }}
-      return start || period || fb;
+      const end = period ? extractEnd(period) : null;
+      if (start && end) return fmtStart(start) + ' ~ ' + end;
+      if (start) return fmtStart(start);
+      return period || fb;
     }}
     return b[field] || fb;
   }}

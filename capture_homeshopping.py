@@ -702,17 +702,24 @@ def git_push(archive_date_dir):
 
 if __name__ == '__main__':
     import sys
-    # 로그 파일로도 출력 (작업 스케줄러 실행 시 stdout 확인용)
+    # 로그 파일 출력 (작업 스케줄러는 콘솔이 없어 sys.__stdout__ 사용 불가)
     log_path = os.path.join(BASE_DIR, 'capture_log.txt')
     log_f = open(log_path, 'a', encoding='utf-8')
     class Tee:
         def write(self, msg):
-            sys.__stdout__.write(msg)
+            try:
+                sys.__stdout__.write(msg)
+                sys.__stdout__.flush()
+            except Exception:
+                pass  # 콘솔 없는 환경(작업 스케줄러)에서는 무시
             log_f.write(msg)
+            log_f.flush()
         def flush(self):
-            sys.__stdout__.flush()
+            try: sys.__stdout__.flush()
+            except Exception: pass
             log_f.flush()
     sys.stdout = Tee()
+    sys.stderr = Tee()  # 에러도 로그에 기록
 
     print(f'\n[{TODAY}] 홈쇼핑 자동 캡처 시작...')
 

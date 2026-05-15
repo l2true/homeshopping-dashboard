@@ -175,14 +175,37 @@ def run_cj(browser, archive_dir):
     return tab_name
 
 
+def close_popups_lotte(page):
+    """롯데홈쇼핑 전용 팝업 닫기"""
+    close_popups(page)
+    # "오늘 그만 보기" 우선, 없으면 "닫기"
+    for text in ['오늘 그만 보기', '닫기', '오늘하루 보지않기']:
+        try:
+            page.get_by_text(text, exact=True).first.click(timeout=2000)
+            page.wait_for_timeout(400)
+        except: pass
+    for sel in ['.btn_layer_close', '.popup_close', '.layer_close',
+                '.pop_close', '.btn_close', '[class*=popup] [class*=close]',
+                '[class*=layer] [class*=close]']:
+        try:
+            for btn in page.locator(sel).all():
+                if btn.is_visible():
+                    btn.click(timeout=1000)
+                    page.wait_for_timeout(300)
+        except: pass
+
+
 def run_lotte(browser, archive_dir):
     """롯데홈쇼핑 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
     page.goto('https://m.lotteimall.com', wait_until='domcontentloaded', timeout=60000)
     page.wait_for_timeout(3000)
-    close_popups(page)
+    close_popups_lotte(page)
+    page.wait_for_timeout(500)
+    close_popups_lotte(page)  # 2차 시도
     tab_name = click_next_tab(page)
     page.wait_for_timeout(2000)
+    close_popups_lotte(page)  # 탭 전환 후 팝업 재확인
     capture_full(page, os.path.join(archive_dir, 'lotte_next_tab_full.png'))
     capture_banner(page, os.path.join(archive_dir, 'lotte_banner.png'))
     save_page_text(page, os.path.join(archive_dir, 'lotte_page_text.txt'))

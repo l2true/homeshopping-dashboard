@@ -701,7 +701,11 @@ def git_push(archive_date_dir):
 
 
 if __name__ == '__main__':
-    import sys
+    import sys, subprocess as _sp
+    # playwright 브라우저 자동 설치 (업데이트 후 경로 변경 대비)
+    _sp.run([sys.executable, '-m', 'playwright', 'install', 'chromium'],
+            capture_output=True)
+
     # 로그 파일 출력 (작업 스케줄러는 콘솔이 없어 sys.__stdout__ 사용 불가)
     log_path = os.path.join(BASE_DIR, 'capture_log.txt')
     log_f = open(log_path, 'a', encoding='utf-8')

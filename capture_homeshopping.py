@@ -128,6 +128,19 @@ def run_hyundai(browser, archive_dir):
     return tab_name
 
 
+def _run_with_retry(func, browser, archive_dir, retries=2):
+    """캡처 함수 실패 시 재시도 (최대 retries회)"""
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            return func(browser, archive_dir)
+        except Exception as e:
+            last_err = e
+            if attempt < retries:
+                print(f'  재시도 {attempt+1}/{retries}: {e}')
+    raise last_err
+
+
 def run_gs(browser, archive_dir):
     """GS SHOP 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
@@ -690,14 +703,29 @@ def git_push(archive_date_dir):
         f'{rel}/summary.json',
     ]
     files_to_add = [f for f in candidates if os.path.exists(os.path.join(BASE_DIR, f.replace('/', os.sep)))]
-    cmds = [
-        ['git', '-C', BASE_DIR, 'add', '--force'] + files_to_add,
-        ['git', '-C', BASE_DIR, 'commit', '-m', f'Auto update: {TODAY}'],
-        ['git', '-C', BASE_DIR, 'push', 'origin', 'main'],
-    ]
-    for cmd in cmds:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        print(result.stdout or result.stderr)
+
+    def run_git(args, check=False):
+        r = subprocess.run(['git', '-C', BASE_DIR] + args,
+                           capture_output=True, text=True, encoding='utf-8', errors='replace')
+        out = (r.stdout + r.stderr).strip()
+        if out: print(out)
+        return r.returncode
+
+    run_git(['add', '--force'] + files_to_add)
+
+    rc = run_git(['commit', '-m', f'Auto update: {TODAY}'])
+    if rc not in (0, 1):  # 1 = nothing to commit
+        print(f'git commit 실패 (rc={rc})')
+        return
+
+    # push 실패 시 pull --rebase 후 재시도
+    rc = run_git(['push', 'origin', 'main'])
+    if rc != 0:
+        print('push 실패 → pull --rebase 후 재시도')
+        run_git(['pull', '--rebase', 'origin', 'main'])
+        rc = run_git(['push', 'origin', 'main'])
+        if rc != 0:
+            print('push 재시도 실패 — 로컬에는 저장됨')
 
 
 if __name__ == '__main__':
@@ -731,19 +759,22 @@ if __name__ == '__main__':
     os.makedirs(archive_date_dir, exist_ok=True)
 
     hyundai_tab = gs_tab = cj_tab = lotte_tab = None
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        for name, func in [('현대', run_hyundai), ('GS', run_gs), ('CJ', run_cj), ('롯데', run_lotte)]:
-            try:
-                tab = func(browser, archive_date_dir)
-                print(f'{name} 완료: {tab}')
-                if name == '현대': hyundai_tab = tab
-                elif name == 'GS': gs_tab = tab
-                elif name == 'CJ': cj_tab = tab
-                elif name == '롯데': lotte_tab = tab
-            except Exception as e:
-                print(f'{name} 캡처 실패: {e}')
-        browser.close()
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            for name, func in [('현대', run_hyundai), ('GS', run_gs), ('CJ', run_cj), ('롯데', run_lotte)]:
+                try:
+                    tab = _run_with_retry(func, browser, archive_date_dir, retries=2)
+                    print(f'{name} 완료: {tab}')
+                    if name == '현대': hyundai_tab = tab
+                    elif name == 'GS': gs_tab = tab
+                    elif name == 'CJ': cj_tab = tab
+                    elif name == '롯데': lotte_tab = tab
+                except Exception as e:
+                    print(f'{name} 캡처 최종 실패: {e}')
+            browser.close()
+    except Exception as e:
+        print(f'브라우저 실행 실패: {e}')
 
     print('AI 요약 생성 중...')
     try:
@@ -751,8 +782,16 @@ if __name__ == '__main__':
     except Exception as e:
         print(f'요약 실패: {e}')
 
-    archive_dates = get_archive_dates()
-    update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates)
-    git_push(archive_date_dir)
+    try:
+        archive_dates = get_archive_dates()
+        update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates)
+    except Exception as e:
+        print(f'HTML 업데이트 실패: {e}')
+
+    try:
+        git_push(archive_date_dir)
+    except Exception as e:
+        print(f'git push 실패: {e}')
+
     print('전체 완료! GitHub Pages 자동 업데이트됨')
     log_f.close()

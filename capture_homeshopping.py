@@ -753,9 +753,6 @@ def git_push(archive_date_dir):
 
 if __name__ == '__main__':
     import sys, subprocess as _sp
-    # playwright 브라우저 자동 설치 (업데이트 후 경로 변경 대비)
-    _sp.run([sys.executable, '-m', 'playwright', 'install', 'chromium'],
-            capture_output=True)
 
     # 로그 파일 출력 (작업 스케줄러는 콘솔이 없어 sys.__stdout__ 사용 불가)
     log_path = os.path.join(BASE_DIR, 'capture_log.txt')
@@ -777,6 +774,17 @@ if __name__ == '__main__':
     sys.stderr = Tee()  # 에러도 로그에 기록
 
     print(f'\n[{TODAY}] 홈쇼핑 자동 캡처 시작...')
+
+    # playwright 브라우저 자동 설치 (업데이트 후 경로 변경 대비) — 로그에 결과 기록
+    print('playwright install 실행 중...')
+    pw_result = _sp.run(
+        [sys.executable, '-m', 'playwright', 'install', 'chromium'],
+        capture_output=True, text=True, encoding='utf-8', errors='replace'
+    )
+    if pw_result.returncode != 0:
+        print(f'playwright install 실패 (rc={pw_result.returncode}): {pw_result.stderr[:200]}')
+    else:
+        print('playwright install 완료')
 
     archive_date_dir = os.path.join(ARCHIVE_DIR, TODAY_KEY)
     os.makedirs(archive_date_dir, exist_ok=True)

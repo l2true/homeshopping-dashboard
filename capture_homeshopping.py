@@ -417,7 +417,9 @@ HYUNDAI_PROMPT_EXTRA = (
     '현대홈쇼핑은 매일 행사가 있지 않습니다. '
     '진행 중인 행사가 없으면 프로모션명에 "해당없음"이라고 쓰고 혜택 행은 모두 생략하세요. '
     '탭명이 특정 브랜드나 업체명(예: 한국금거래소, 특정 쇼핑몰 이름 등)인 경우에도 '
-    '프로모션 행사가 아닌 브랜드관으로 판단하여 "해당없음"으로 처리하세요.'
+    '프로모션 행사가 아닌 브랜드관으로 판단하여 "해당없음"으로 처리하세요. '
+    '카드 할인, 적립, 쿠폰 등 구체적인 혜택이 하나도 없는 단순 방송 홍보(예: 오감쇼, 스페셜방송 등)도 '
+    '"해당없음"으로 처리하세요. 혜택 항목을 작성할 수 없으면 반드시 "해당없음"입니다.'
 )
 
 
@@ -468,7 +470,11 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
         banner_path = img_path.replace('_next_tab_full.png', '_banner.png')
         try:
             raw = _ask_claude(img_path, prompt, text_path, banner_path)
-            summaries[brand] = parse_summary_text(raw)
+            result = parse_summary_text(raw)
+            # 현대: 혜택(body)이 없으면 단순 방송 홍보 → 해당없음 강제 처리
+            if brand == 'hyundai' and not result.get('body', '').strip():
+                result = {'period': '', 'name': '해당없음', 'body': ''}
+            summaries[brand] = result
             print(f'{brand} 요약 완료')
         except Exception as e:
             print(f'{brand} 요약 실패: {e}')

@@ -10,10 +10,20 @@
     header { background: #1a1a2e; color: white; padding: 20px 32px; display: flex; align-items: center; gap: 12px; }
     header h1 { font-size: 20px; font-weight: 700; }
     header span { font-size: 14px; color: #aaa; margin-left: auto; }
-    .date-nav { max-width: 1600px; margin: 20px auto 0; padding: 0 24px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .page-wrap { display: flex; align-items: flex-start; }
+    .sidebar { width: 108px; min-width: 108px; position: sticky; top: 20px; margin: 20px 0 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .sidebar a { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px; border-radius: 14px; text-decoration: none; font-size: 11px; font-weight: 700; color: white; transition: opacity 0.15s, transform 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    .sidebar a:hover { opacity: 0.85; transform: translateY(-2px); }
+    .sidebar a .site-icon { font-size: 22px; }
+    .sidebar a.gs { background: #1565c0; }
+    .sidebar a.cj { background: #7b1fa2; }
+    .sidebar a.lotte { background: #c62828; }
+    .sidebar a.hyundai { background: #e65100; }
+    .main-area { flex: 1; min-width: 0; }
+    .date-nav { margin: 20px 20px 0; display: flex; gap: 8px; flex-wrap: wrap; }
     .date-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 13px; cursor: pointer; color: #555; }
     .date-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }
-    .container { max-width: 1800px; margin: 20px auto 32px; padding: 0 24px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .container { margin: 20px 20px 32px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
     .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
     .card.no-event { opacity: 0.55; }
     .card-header { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; }
@@ -39,6 +49,22 @@
   <h1>홈쇼핑 행사 요약</h1>
   <span id="header-date">기준일: 2026.05.19 오전 10시 자동 캡처</span>
 </header>
+<div class="page-wrap">
+<aside class="sidebar">
+  <a class="gs" href="https://m.gsshop.com" target="_blank">
+    <span class="site-icon">🛒</span>GS SHOP
+  </a>
+  <a class="cj" href="https://display.cjonstyle.com/m/homeTab/main" target="_blank">
+    <span class="site-icon">🛍️</span>CJ온스타일
+  </a>
+  <a class="lotte" href="https://m.lotteimall.com" target="_blank">
+    <span class="site-icon">🏪</span>롯데홈쇼핑
+  </a>
+  <a class="hyundai" href="https://www.hmall.com" target="_blank">
+    <span class="site-icon">🏬</span>현대홈쇼핑
+  </a>
+</aside>
+<div class="main-area">
 <div class="date-nav" id="date-nav">
 <button class="date-btn active" onclick="switchDate('2026-05-19')">2026-05-19</button>
 <button class="date-btn" onclick="switchDate('2026-05-18')">2026-05-18</button>
@@ -124,6 +150,8 @@
     </div>
   </div>
 </div>
+</div><!-- main-area -->
+</div><!-- page-wrap -->
 <div class="modal" id="modal" onclick="closeModal()">
   <span class="modal-close" onclick="closeModal()">✕</span>
   <img id="modal-img" src="" alt="">

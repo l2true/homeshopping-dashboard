@@ -167,17 +167,23 @@ def run_hyundai(browser, archive_dir):
         except: pass
     close_popups(page)
     tab_name = page.evaluate("""
-        () => {
+        (skipLabels) => {
             const tabs = Array.from(document.querySelectorAll('[class*=main] nav a, .sc-dp-display nav a'));
             const idx = tabs.findIndex(a => a.innerText.trim() === '현대홈쇼핑');
-            if (idx >= 0 && idx+1 < tabs.length) {
-                const next = tabs[idx+1];
-                next.click();
-                return next.innerText.trim();
+            if (idx < 0) return null;
+            let nextIdx = idx + 1;
+            if (nextIdx < tabs.length && skipLabels.length > 0) {
+                const nextText = tabs[nextIdx].innerText.trim();
+                const shouldSkip = skipLabels.some(s => nextText.includes(s));
+                if (shouldSkip && nextIdx + 1 < tabs.length) nextIdx++;
+            }
+            if (nextIdx < tabs.length) {
+                tabs[nextIdx].click();
+                return tabs[nextIdx].innerText.trim();
             }
             return null;
         }
-    """)
+    """, HYUNDAI_SKIP_TABS)
     # 현대 탭 목록 별도 저장 (현대홈쇼핑 기준 이후 탭, 최대 15개·중복 제거)
     hyundai_tabs = page.evaluate("""
         () => {
@@ -239,7 +245,8 @@ def run_gs(browser, archive_dir):
     return tab_name
 
 
-CJ_SKIP_TABS = ['라이브쇼특가', '매일특가']  # 홈 바로 옆이 이 탭이면 그 다음 탭으로 이동
+CJ_SKIP_TABS = ['라이브쇼특가', '매일특가']        # CJ: 홈 바로 옆이 이 탭이면 그 다음 탭으로 이동
+HYUNDAI_SKIP_TABS = ['오감쇼']                    # 현대: 방송 프로그램 탭 스킵 → 피드백 시 추가
 
 def run_cj(browser, archive_dir):
     """CJ온스타일 캡처"""

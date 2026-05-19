@@ -54,20 +54,79 @@ def close_popups_gs(page):
     except: pass
 
 
-def click_next_tab(page, home_label='홈'):
-    """홈 탭 오른쪽 탭 클릭 (home_label: 홈 탭 텍스트)"""
+NOISE_TABS = {'팝업 닫기', '위로 가기', '고객센터', '로그인', '홈화면', '카테고리', '마이페이지', '최근본쇼핑', '홈 바로가기'}
+
+def get_all_tabs(page, home_label='홈'):
+    """탭바에서 홈 탭 기준으로 보이는 탭명 전체 목록 반환
+    - 줄바꿈 탭(예: 7%+13%\\n뷰티페스타)은 마지막 줄(실제 탭명)만 사용
+    - 중복·노이즈 제거, 최대 12개 제한
+    """
+    try:
+        tabs = page.evaluate("""
+            (homeLabel) => {
+                const tabs = Array.from(document.querySelectorAll('.tab_menu a, .gnb_menu a, [class*=tab] a'));
+                const homeIdx = tabs.findIndex(a => a.innerText.trim() === homeLabel);
+                if (homeIdx < 0) return [];
+                const seen = new Set();
+                const result = [];
+                for (const a of tabs.slice(homeIdx)) {
+                    const lines = a.innerText.trim().split('\\n').map(l => l.trim()).filter(l => l);
+                    // 줄바꿈 있으면 마지막 줄이 실제 탭명 (첫 줄은 할인율 등 부가정보)
+                    const t = lines.length > 1 ? lines[lines.length - 1] : (lines[0] || '');
+                    if (!t) continue;
+                    if (seen.has(t)) break;  // 중복 시작 = 본문 링크 진입, 중단
+                    seen.add(t);
+                    result.push(t);
+                    if (result.length >= 12) break;
+                }
+                return result;
+            }
+        """, home_label)
+        # 노이즈 탭 필터링 (팝업 닫기, 로그인 등 UI 요소)
+        return [t for t in tabs if t not in NOISE_TABS and len(t) < 30
+                and '공지사항' not in t and '처리방침' not in t]
+    except:
+        return []
+
+
+def save_tab_names(archive_dir, brand, tabs):
+    """tab_names.json에 해당 브랜드 탭 목록 기록 (누적)"""
+    path = os.path.join(archive_dir, 'tab_names.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+    except:
+        data = {}
+    # 이모지 등 cp949 비호환 문자 제거 후 저장
+    data[brand] = [t.encode('utf-8', errors='replace').decode('utf-8') for t in (tabs or [])]
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def click_next_tab(page, home_label='홈', skip_labels=None):
+    """홈 탭 오른쪽 탭 클릭 (home_label: 홈 탭 텍스트)
+    skip_labels: 해당 탭명이 포함되면 한 칸 더 오른쪽으로 이동 (예: CJ 라이브쇼특가)
+    """
     return page.evaluate("""
-        (homeLabel) => {
+        ([homeLabel, skipLabels]) => {
             const tabs = Array.from(document.querySelectorAll('.tab_menu a, .gnb_menu a, [class*=tab] a'));
             const homeIdx = tabs.findIndex(a => a.innerText.trim() === homeLabel);
-            if (homeIdx >= 0 && homeIdx+1 < tabs.length) {
-                const next = tabs[homeIdx+1];
-                next.click();
-                return next.innerText.trim();
+            if (homeIdx < 0) return null;
+            let nextIdx = homeIdx + 1;
+            if (nextIdx < tabs.length && skipLabels && skipLabels.length > 0) {
+                const nextText = tabs[nextIdx].innerText.trim();
+                const shouldSkip = skipLabels.some(s => nextText.includes(s));
+                if (shouldSkip && nextIdx + 1 < tabs.length) {
+                    nextIdx = nextIdx + 1;
+                }
+            }
+            if (nextIdx < tabs.length) {
+                tabs[nextIdx].click();
+                return tabs[nextIdx].innerText.trim();
             }
             return null;
         }
-    """, home_label)
+    """, [home_label, skip_labels or []])
 
 
 def capture_full(page, path):
@@ -119,6 +178,26 @@ def run_hyundai(browser, archive_dir):
             return null;
         }
     """)
+    # 현대 탭 목록 별도 저장 (현대홈쇼핑 기준 이후 탭, 최대 15개·중복 제거)
+    hyundai_tabs = page.evaluate("""
+        () => {
+            const tabs = Array.from(document.querySelectorAll('[class*=main] nav a, .sc-dp-display nav a'));
+            const idx = tabs.findIndex(a => a.innerText.trim() === '현대홈쇼핑');
+            if (idx < 0) return [];
+            const seen = new Set();
+            const result = [];
+            for (const a of tabs.slice(idx)) {
+                const t = a.innerText.split('\\n')[0].trim();
+                if (!t) continue;
+                if (seen.has(t)) break;
+                seen.add(t);
+                result.push(t);
+                if (result.length >= 15) break;
+            }
+            return result;
+        }
+    """)
+    save_tab_names(archive_dir, 'hyundai', hyundai_tabs or [])
     page.wait_for_timeout(2000)
     close_popups(page)
     capture_full(page, os.path.join(archive_dir, 'hyundai_next_tab_full.png'))
@@ -149,6 +228,7 @@ def run_gs(browser, archive_dir):
     close_popups_gs(page)
     page.wait_for_timeout(1000)
     close_popups_gs(page)
+    save_tab_names(archive_dir, 'gs', get_all_tabs(page))
     tab_name = click_next_tab(page)
     page.wait_for_timeout(2000)
     close_popups_gs(page)
@@ -159,13 +239,16 @@ def run_gs(browser, archive_dir):
     return tab_name
 
 
+CJ_SKIP_TABS = ['라이브쇼특가', '매일특가']  # 홈 바로 옆이 이 탭이면 그 다음 탭으로 이동
+
 def run_cj(browser, archive_dir):
     """CJ온스타일 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
     page.goto('https://display.cjonstyle.com/m/homeTab/main?hmtabMenuId=H00005', wait_until='domcontentloaded', timeout=60000)
     page.wait_for_timeout(3000)
     close_popups(page)
-    tab_name = click_next_tab(page)
+    save_tab_names(archive_dir, 'cj', get_all_tabs(page))
+    tab_name = click_next_tab(page, skip_labels=CJ_SKIP_TABS)
     page.wait_for_timeout(2000)
     close_popups(page)
     capture_full(page, os.path.join(archive_dir, 'cj_next_tab_full.png'))
@@ -203,6 +286,7 @@ def run_lotte(browser, archive_dir):
     close_popups_lotte(page)
     page.wait_for_timeout(500)
     close_popups_lotte(page)  # 2차 시도
+    save_tab_names(archive_dir, 'lotte', get_all_tabs(page))
     tab_name = click_next_tab(page)
     page.wait_for_timeout(2000)
     close_popups_lotte(page)  # 탭 전환 후 팝업 재확인
@@ -724,6 +808,7 @@ def git_push(archive_date_dir):
         f'{rel}/cj_next_tab_full.png',      f'{rel}/cj_banner.png',      f'{rel}/cj_page_text.txt',
         f'{rel}/lotte_next_tab_full.png',   f'{rel}/lotte_banner.png',   f'{rel}/lotte_page_text.txt',
         f'{rel}/summary.json',
+        f'{rel}/tab_names.json',
     ]
     files_to_add = [f for f in candidates if os.path.exists(os.path.join(BASE_DIR, f.replace('/', os.sep)))]
 
@@ -776,10 +861,15 @@ if __name__ == '__main__':
     print(f'\n[{TODAY}] 홈쇼핑 자동 캡처 시작...')
 
     # playwright 브라우저 자동 설치 (업데이트 후 경로 변경 대비) — 로그에 결과 기록
+    # NODE_TLS_REJECT_UNAUTHORIZED=0 : 회사 프록시 self-signed 인증서 우회
     print('playwright install 실행 중...')
+    import copy
+    pw_env = copy.copy(os.environ)
+    pw_env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
     pw_result = _sp.run(
         [sys.executable, '-m', 'playwright', 'install', 'chromium'],
-        capture_output=True, text=True, encoding='utf-8', errors='replace'
+        capture_output=True, text=True, encoding='utf-8', errors='replace',
+        env=pw_env
     )
     if pw_result.returncode != 0:
         print(f'playwright install 실패 (rc={pw_result.returncode}): {pw_result.stderr[:200]}')

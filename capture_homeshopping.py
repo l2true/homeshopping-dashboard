@@ -130,13 +130,14 @@ def click_next_tab(page, home_label='홈', skip_labels=None):
 
 
 def capture_full(page, path):
-    page.screenshot(path=path, full_page=True)
+    page.screenshot(path=path, full_page=True, timeout=60000, animations='disabled')
     return path
 
 
 def capture_banner(page, path, height=600):
     """상단 배너 영역만 크롭 저장 (메인 프로모션명 판독용)"""
-    page.screenshot(path=path, clip={'x': 0, 'y': 0, 'width': VIEWPORT['width'], 'height': height})
+    page.screenshot(path=path, clip={'x': 0, 'y': 0, 'width': VIEWPORT['width'], 'height': height},
+                    timeout=60000, animations='disabled')
     return path
 
 
@@ -236,7 +237,10 @@ def run_gs(browser, archive_dir):
     close_popups_gs(page)
     save_tab_names(archive_dir, 'gs', get_all_tabs(page))
     tab_name = click_next_tab(page)
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(3000)
+    try:
+        page.wait_for_load_state('networkidle', timeout=8000)
+    except: pass
     close_popups_gs(page)
     capture_full(page, os.path.join(archive_dir, 'gs_next_tab_full.png'))
     capture_banner(page, os.path.join(archive_dir, 'gs_banner.png'))

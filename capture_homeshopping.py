@@ -217,6 +217,7 @@ def run_hyundai(browser, archive_dir):
     save_tab_names(archive_dir, 'hyundai', hyundai_tabs or [])
     page.wait_for_timeout(2000)
     close_popups(page)
+    scroll_to_load(page)
     capture_full(page, os.path.join(archive_dir, 'hyundai_next_tab_full.png'))
     capture_banner(page, os.path.join(archive_dir, 'hyundai_banner.png'))
     save_page_text(page, os.path.join(archive_dir, 'hyundai_page_text.txt'))
@@ -441,7 +442,9 @@ HYUNDAI_PROMPT_EXTRA = (
     '탭명이 특정 브랜드나 업체명(예: 한국금거래소, 특정 쇼핑몰 이름 등)인 경우에도 '
     '프로모션 행사가 아닌 브랜드관으로 판단하여 "해당없음"으로 처리하세요. '
     '카드 할인, 적립, 쿠폰 등 구체적인 혜택이 하나도 없는 단순 방송 홍보(예: 오감쇼, 스페셜방송 등)도 '
-    '"해당없음"으로 처리하세요. 혜택 항목을 작성할 수 없으면 반드시 "해당없음"입니다.'
+    '"해당없음"으로 처리하세요. 혜택 항목을 작성할 수 없으면 반드시 "해당없음"입니다. '
+    '페이지 텍스트에 없더라도 이미지에서 보이는 혜택은 반드시 추출하세요. '
+    '구매 사은품(증정품), 쇼핑 지원금, 선착순 증정 등도 이미지에서 확인되면 사은품 또는 쿠폰으로 작성하세요.'
 )
 
 

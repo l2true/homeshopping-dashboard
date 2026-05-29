@@ -20,9 +20,13 @@
     .sidebar a.lotte { background: #c62828; }
     .sidebar a.hyundai { background: #e65100; }
     .main-area { flex: 1; min-width: 0; }
-    .date-nav { margin: 20px 20px 0; display: flex; gap: 8px; flex-wrap: wrap; }
-    .date-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 13px; cursor: pointer; color: #555; }
-    .date-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }
+    .date-nav { margin: 16px 20px 0; display: flex; flex-direction: column; gap: 6px; }
+    .month-nav { display: flex; gap: 6px; flex-wrap: wrap; }
+    .month-btn { padding: 5px 14px; border-radius: 8px; border: 1px solid #ddd; background: white; font-size: 12px; font-weight: 700; cursor: pointer; color: #555; transition: all 0.15s; }
+    .month-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+    .day-nav { display: flex; gap: 5px; flex-wrap: wrap; padding: 6px 0 2px; border-top: 1px solid #e8e8f0; }
+    .day-btn { padding: 4px 11px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 12px; cursor: pointer; color: #555; transition: all 0.15s; min-width: 42px; text-align: center; }
+    .day-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }
     .container { margin: 20px 20px 32px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
     .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
     .card.no-event { opacity: 0.55; }
@@ -66,22 +70,27 @@
 </aside>
 <div class="main-area">
 <div class="date-nav" id="date-nav">
-<button class="date-btn active" onclick="switchDate('2026-05-29')">2026-05-29</button>
-<button class="date-btn" onclick="switchDate('2026-05-28')">2026-05-28</button>
-<button class="date-btn" onclick="switchDate('2026-05-27')">2026-05-27</button>
-<button class="date-btn" onclick="switchDate('2026-05-26')">2026-05-26</button>
-<button class="date-btn" onclick="switchDate('2026-05-25')">2026-05-25</button>
-<button class="date-btn" onclick="switchDate('2026-05-24')">2026-05-24</button>
-<button class="date-btn" onclick="switchDate('2026-05-23')">2026-05-23</button>
-<button class="date-btn" onclick="switchDate('2026-05-22')">2026-05-22</button>
-<button class="date-btn" onclick="switchDate('2026-05-21')">2026-05-21</button>
-<button class="date-btn" onclick="switchDate('2026-05-20')">2026-05-20</button>
-<button class="date-btn" onclick="switchDate('2026-05-19')">2026-05-19</button>
-<button class="date-btn" onclick="switchDate('2026-05-18')">2026-05-18</button>
-<button class="date-btn" onclick="switchDate('2026-05-15')">2026-05-15</button>
-<button class="date-btn" onclick="switchDate('2026-05-14')">2026-05-14</button>
-<button class="date-btn" onclick="switchDate('2026-05-13')">2026-05-13</button>
-<button class="date-btn" onclick="switchDate('2026-05-12')">2026-05-12</button>
+  <div class="month-nav" id="month-nav">
+    <button class="month-btn active" data-ym="2026-05" onclick="switchMonth('2026-05')">2026.05</button>
+  </div>
+  <div class="day-nav" id="day-nav">
+    <button class="day-btn active" data-date="2026-05-29" onclick="switchDate('2026-05-29')">29일</button>
+    <button class="day-btn" data-date="2026-05-28" onclick="switchDate('2026-05-28')">28일</button>
+    <button class="day-btn" data-date="2026-05-27" onclick="switchDate('2026-05-27')">27일</button>
+    <button class="day-btn" data-date="2026-05-26" onclick="switchDate('2026-05-26')">26일</button>
+    <button class="day-btn" data-date="2026-05-25" onclick="switchDate('2026-05-25')">25일</button>
+    <button class="day-btn" data-date="2026-05-24" onclick="switchDate('2026-05-24')">24일</button>
+    <button class="day-btn" data-date="2026-05-23" onclick="switchDate('2026-05-23')">23일</button>
+    <button class="day-btn" data-date="2026-05-22" onclick="switchDate('2026-05-22')">22일</button>
+    <button class="day-btn" data-date="2026-05-21" onclick="switchDate('2026-05-21')">21일</button>
+    <button class="day-btn" data-date="2026-05-20" onclick="switchDate('2026-05-20')">20일</button>
+    <button class="day-btn" data-date="2026-05-19" onclick="switchDate('2026-05-19')">19일</button>
+    <button class="day-btn" data-date="2026-05-18" onclick="switchDate('2026-05-18')">18일</button>
+    <button class="day-btn" data-date="2026-05-15" onclick="switchDate('2026-05-15')">15일</button>
+    <button class="day-btn" data-date="2026-05-14" onclick="switchDate('2026-05-14')">14일</button>
+    <button class="day-btn" data-date="2026-05-13" onclick="switchDate('2026-05-13')">13일</button>
+    <button class="day-btn" data-date="2026-05-12" onclick="switchDate('2026-05-12')">12일</button>
+  </div>
 </div>
 <div class="container">
   <div class="card">
@@ -251,7 +260,15 @@
     g('cj-summary').textContent      = sfield(obj,'cj','body',NO_BODY);
     g('lotte-summary').textContent   = sfield(obj,'lotte','body',NO_BODY);
     g('header-date').textContent = '기준일: ' + d;
-    document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.textContent === d));
+    document.querySelectorAll('.day-btn').forEach(b => b.classList.toggle('active', b.dataset.date === d));
+  }
+  function switchMonth(ym) {
+    document.querySelectorAll('.month-btn').forEach(b => b.classList.toggle('active', b.dataset.ym === ym));
+    const days = Object.keys(summaries).filter(d => d.startsWith(ym)).sort((a,b) => b.localeCompare(a));
+    document.getElementById('day-nav').innerHTML = days.map(d => {
+      const day = parseInt(d.split('-')[2]);
+      return `<button class="day-btn" data-date="${d}" onclick="switchDate('${d}')">${day}일</button>`;
+    }).join('');
   }
 </script>
 </body>

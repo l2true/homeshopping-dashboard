@@ -598,9 +598,21 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
 
     hyundai_no_event = (hyundai_name == '해당없음')
 
-    date_nav_items = '\n'.join(
-        f'<button class="date-btn{" active" if d == latest else ""}" onclick="switchDate(\'{d}\')">{d}</button>'
-        for d in archive_dates
+    months_map = {}
+    for d in archive_dates:
+        ym = d[:7]
+        if ym not in months_map:
+            months_map[ym] = []
+        months_map[ym].append(d)
+    latest_month = latest[:7]
+
+    month_btns = '\n'.join(
+        f'<button class="month-btn{" active" if ym == latest_month else ""}" data-ym="{ym}" onclick="switchMonth(\'{ym}\')">{ym.replace("-", ".")}</button>'
+        for ym in sorted(months_map.keys(), reverse=True)
+    )
+    day_btns = '\n'.join(
+        f'<button class="day-btn{" active" if d == latest else ""}" data-date="{d}" onclick="switchDate(\'{d}\')">{int(d[8:])}일</button>'
+        for d in months_map.get(latest_month, [])
     )
 
     html = f"""<!DOCTYPE html>
@@ -625,9 +637,13 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     .sidebar a.lotte {{ background: #c62828; }}
     .sidebar a.hyundai {{ background: #e65100; }}
     .main-area {{ flex: 1; min-width: 0; }}
-    .date-nav {{ margin: 20px 20px 0; display: flex; gap: 8px; flex-wrap: wrap; }}
-    .date-btn {{ padding: 6px 14px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 13px; cursor: pointer; color: #555; }}
-    .date-btn.active {{ background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }}
+    .date-nav {{ margin: 16px 20px 0; display: flex; flex-direction: column; gap: 6px; }}
+    .month-nav {{ display: flex; gap: 6px; flex-wrap: wrap; }}
+    .month-btn {{ padding: 5px 14px; border-radius: 8px; border: 1px solid #ddd; background: white; font-size: 12px; font-weight: 700; cursor: pointer; color: #555; transition: all 0.15s; }}
+    .month-btn.active {{ background: #1a1a2e; color: white; border-color: #1a1a2e; }}
+    .day-nav {{ display: flex; gap: 5px; flex-wrap: wrap; padding: 6px 0 2px; border-top: 1px solid #e8e8f0; }}
+    .day-btn {{ padding: 4px 11px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 12px; cursor: pointer; color: #555; transition: all 0.15s; min-width: 42px; text-align: center; }}
+    .day-btn.active {{ background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }}
     .container {{ margin: 20px 20px 32px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }}
     .card {{ background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }}
     .card.no-event {{ opacity: 0.55; }}
@@ -671,7 +687,12 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
 </aside>
 <div class="main-area">
 <div class="date-nav" id="date-nav">
-{date_nav_items}
+  <div class="month-nav" id="month-nav">
+{month_btns}
+  </div>
+  <div class="day-nav" id="day-nav">
+{day_btns}
+  </div>
 </div>
 <div class="container">
   <div class="card">
@@ -831,7 +852,15 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     g('cj-summary').textContent      = sfield(obj,'cj','body',NO_BODY);
     g('lotte-summary').textContent   = sfield(obj,'lotte','body',NO_BODY);
     g('header-date').textContent = '기준일: ' + d;
-    document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.textContent === d));
+    document.querySelectorAll('.day-btn').forEach(b => b.classList.toggle('active', b.dataset.date === d));
+  }}
+  function switchMonth(ym) {{
+    document.querySelectorAll('.month-btn').forEach(b => b.classList.toggle('active', b.dataset.ym === ym));
+    const days = Object.keys(summaries).filter(d => d.startsWith(ym)).sort((a,b) => b.localeCompare(a));
+    g('day-nav').innerHTML = days.map(d => {{
+      const day = parseInt(d.split('-')[2]);
+      return `<button class="day-btn" data-date="${{d}}" onclick="switchDate('${{d}}')">${{day}}일</button>`;
+    }}).join('');
   }}
 </script>
 </body>

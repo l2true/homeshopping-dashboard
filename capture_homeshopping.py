@@ -638,9 +638,14 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
   <style>
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{ font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f6f9; color: #222; }}
-    header {{ background: #1a1a2e; color: white; padding: 20px 32px; display: flex; align-items: center; gap: 12px; }}
-    header h1 {{ font-size: 20px; font-weight: 700; }}
-    header span {{ font-size: 14px; color: #aaa; margin-left: auto; }}
+    header {{ background: white; color: #1a1a2e; padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 #ebebf0; }}
+    header h1 {{ font-size: 20px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.5px; line-height: 1.2; }}
+    .header-sub {{ font-size: 10px; color: #bbb; font-weight: 500; letter-spacing: 2px; margin-top: 3px; }}
+    .header-right {{ display: flex; align-items: center; gap: 14px; }}
+    .header-date {{ font-size: 13px; color: #666; }}
+    .live-dot {{ display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; }}
+    .live-dot::before {{ content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 2px #bbf7d0; display: block; }}
+    .header-bar {{ height: 3px; background: linear-gradient(to right, #1565c0 25%, #7b1fa2 25% 50%, #c62828 50% 75%, #e65100 75%); position: sticky; top: 57px; z-index: 99; }}
     .page-wrap {{ display: flex; align-items: flex-start; }}
     .sidebar {{ width: 108px; min-width: 108px; position: sticky; top: 20px; margin: 20px 0 20px 20px; display: flex; flex-direction: column; gap: 10px; }}
     .sidebar a {{ display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px; border-radius: 14px; text-decoration: none; font-size: 11px; font-weight: 700; color: white; transition: opacity 0.15s, transform 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }}
@@ -684,9 +689,16 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
 </head>
 <body>
 <header>
-  <h1>홈쇼핑 행사 요약</h1>
-  <span id="header-date">기준일: {TODAY} 오전 10시 자동 캡처</span>
+  <div>
+    <h1>홈쇼핑 행사 요약</h1>
+    <div class="header-sub">HOMESHOPPING WEEKLY</div>
+  </div>
+  <div class="header-right">
+    <span class="header-date" id="header-date">기준일: {TODAY_KEY}</span>
+    <span class="live-dot">자동수집</span>
+  </div>
 </header>
+<div class="header-bar"></div>
 <div class="page-wrap">
 <aside class="sidebar">
   <a class="gs" href="https://m.gsshop.com" target="_blank">

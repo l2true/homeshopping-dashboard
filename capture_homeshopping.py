@@ -655,7 +655,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     .month-nav {{ display: flex; gap: 6px; flex-wrap: wrap; }}
     .month-btn {{ padding: 5px 14px; border-radius: 8px; border: 1px solid #ddd; background: white; font-size: 12px; font-weight: 700; cursor: pointer; color: #555; transition: all 0.15s; }}
     .month-btn.active {{ background: #1a1a2e; color: white; border-color: #1a1a2e; }}
-    .day-nav {{ display: flex; gap: 5px; flex-wrap: wrap; padding: 6px 0 2px; border-top: 1px solid #e8e8f0; }}
+    .day-nav {{ padding: 8px 0 4px; border-top: 1px solid #e8e8f0; }}
     .day-btn {{ padding: 4px 11px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 12px; cursor: pointer; color: #555; transition: all 0.15s; min-width: 42px; text-align: center; }}
     .day-btn.active {{ background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }}
     .container {{ margin: 20px 20px 32px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }}
@@ -786,6 +786,9 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
   <img id="modal-img" src="" alt="">
 </div>
 <script>
+  const BRAND_COLORS = {{gs:'#1565c0',cj:'#7b1fa2',lotte:'#c62828',hyundai:'#e65100'}};
+  const BRANDS_ORDER = ['gs','cj','lotte','hyundai'];
+  let _activeDate = '';
   const TAG_COLORS = {{
     '카드':    {{bg:'#dbeafe',color:'#1d4ed8',border:'#93c5fd'}},
     '적립':    {{bg:'#dcfce7',color:'#166534',border:'#86efac'}},
@@ -822,6 +825,9 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
       const el = g(b+'-summary');
       if (el) el.innerHTML = renderSummary(el.textContent);
     }});
+    _activeDate = Object.keys(summaries).sort((a,b) => b.localeCompare(a))[0] || '';
+    const activeMonthBtn = document.querySelector('.month-btn.active');
+    if (activeMonthBtn) renderCalendar(activeMonthBtn.dataset.ym);
     renderWeeklyTrend();
   }}
   function renderWeeklyTrend() {{
@@ -862,6 +868,47 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
       return `<span style="background:${{c.bg}};color:${{c.color}};border:1px solid ${{c.border}};padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;white-space:nowrap">${{tag}} ${{cnt}}건${{hint}}</span>`;
     }}).join('');
     el.innerHTML = `<span style="color:#666;font-size:11px;font-weight:700;white-space:nowrap">📊 ${{from}}~${{to}}</span><div style="display:flex;gap:6px;flex-wrap:wrap">${{pills}}</div>`;
+  }}
+  function renderCalendar(ym) {{
+    const [year, month] = ym.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const firstDow = (new Date(year, month-1, 1).getDay() + 6) % 7;
+    const now = new Date();
+    const todayStr = `${{now.getFullYear()}}-${{String(now.getMonth()+1).padStart(2,'0')}}-${{String(now.getDate()).padStart(2,'0')}}`;
+    const DOW = ['월','화','수','목','금','토','일'];
+    let html = '<table style="width:100%;border-collapse:separate;border-spacing:4px">';
+    html += '<tr>' + DOW.map(h => `<th style="text-align:center;font-size:10px;color:#aaa;padding:3px 0;font-weight:600">${{h}}</th>`).join('') + '</tr>';
+    let day = 1;
+    for (let row = 0; row < 6; row++) {{
+      if (day > daysInMonth) break;
+      html += '<tr>';
+      for (let col = 0; col < 7; col++) {{
+        if (row === 0 && col < firstDow || day > daysInMonth) {{
+          html += '<td></td>';
+        }} else {{
+          const d = `${{ym}}-${{String(day).padStart(2,'0')}}`;
+          const data = summaries[d];
+          const isActive = d === _activeDate, isToday = d === todayStr;
+          const bg     = isActive ? '#1a1a2e' : (data ? (isToday ? '#eef2ff' : 'white') : 'transparent');
+          const border = isActive ? '1px solid #1a1a2e' : (data ? `1px solid ${{isToday ? '#93c5fd' : '#e8eaf0'}}` : 'none');
+          const numColor  = isActive ? 'white' : (data ? (isToday ? '#1d4ed8' : '#333') : '#ddd');
+          const numWeight = (isActive || isToday) ? '700' : '400';
+          const dots = data ? BRANDS_ORDER
+            .filter(b => data[b] && data[b].name && data[b].name !== '해당없음')
+            .map(b => `<span style="width:5px;height:5px;border-radius:50%;background:${{BRAND_COLORS[b]}};display:inline-block;flex-shrink:0"></span>`)
+            .join('') : '';
+          const onclick = data ? ` onclick="switchDate('${{d}}')"` : '';
+          html += `<td data-date="${{d}}"${{onclick}} style="${{data?'cursor:pointer;':''}}text-align:center;padding:5px 2px;border-radius:8px;background:${{bg}};border:${{border}}">
+            <div class="cal-num" style="font-size:12px;color:${{numColor}};font-weight:${{numWeight}};margin-bottom:3px;line-height:1">${{day}}</div>
+            <div style="display:flex;justify-content:center;gap:2px;min-height:6px">${{dots}}</div>
+          </td>`;
+          day++;
+        }}
+      }}
+      html += '</tr>';
+    }}
+    html += '</table>';
+    g('day-nav').innerHTML = html;
   }}
   document.addEventListener('DOMContentLoaded', renderAll);
   const summaries = {summaries_js};
@@ -945,15 +992,21 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     g('cj-summary').innerHTML      = renderSummary(sfield(obj,'cj','body',NO_BODY));
     g('lotte-summary').innerHTML   = renderSummary(sfield(obj,'lotte','body',NO_BODY));
     g('header-date').textContent = '기준일: ' + d;
+    _activeDate = d;
     document.querySelectorAll('.day-btn').forEach(b => b.classList.toggle('active', b.dataset.date === d));
+    const now2 = new Date();
+    const todayStr2 = `${{now2.getFullYear()}}-${{String(now2.getMonth()+1).padStart(2,'0')}}-${{String(now2.getDate()).padStart(2,'0')}}`;
+    document.querySelectorAll('#day-nav td[data-date]').forEach(td => {{
+      const td_d = td.dataset.date, isAct = td_d === d, isTod = td_d === todayStr2, hasDat = !!summaries[td_d];
+      td.style.background = isAct ? '#1a1a2e' : (hasDat ? (isTod ? '#eef2ff' : 'white') : 'transparent');
+      td.style.border     = isAct ? '1px solid #1a1a2e' : (hasDat ? `1px solid ${{isTod ? '#93c5fd' : '#e8eaf0'}}` : 'none');
+      const num = td.querySelector('.cal-num');
+      if (num) {{ num.style.color = isAct ? 'white' : (hasDat ? (isTod ? '#1d4ed8' : '#333') : '#ddd'); num.style.fontWeight = (isAct||isTod) ? '700' : '400'; }}
+    }});
   }}
   function switchMonth(ym) {{
     document.querySelectorAll('.month-btn').forEach(b => b.classList.toggle('active', b.dataset.ym === ym));
-    const days = Object.keys(summaries).filter(d => d.startsWith(ym)).sort((a,b) => b.localeCompare(a));
-    g('day-nav').innerHTML = days.map(d => {{
-      const day = parseInt(d.split('-')[2]);
-      return `<button class="day-btn" data-date="${{d}}" onclick="switchDate('${{d}}')">${{day}}일</button>`;
-    }}).join('');
+    renderCalendar(ym);
   }}
 </script>
 </body>

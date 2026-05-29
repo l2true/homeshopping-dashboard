@@ -651,13 +651,16 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     .sidebar a.lotte {{ background: #c62828; }}
     .sidebar a.hyundai {{ background: #e65100; }}
     .main-area {{ flex: 1; min-width: 0; }}
-    .date-nav {{ margin: 16px 20px 0; display: flex; flex-direction: column; gap: 6px; }}
-    .month-nav {{ display: flex; gap: 6px; flex-wrap: wrap; }}
-    .month-btn {{ padding: 5px 14px; border-radius: 8px; border: 1px solid #ddd; background: white; font-size: 12px; font-weight: 700; cursor: pointer; color: #555; transition: all 0.15s; }}
-    .month-btn.active {{ background: #1a1a2e; color: white; border-color: #1a1a2e; }}
-    .day-nav {{ padding: 8px 0 4px; border-top: 1px solid #e8e8f0; }}
-    .day-btn {{ padding: 4px 11px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 12px; cursor: pointer; color: #555; transition: all 0.15s; min-width: 42px; text-align: center; }}
-    .day-btn.active {{ background: #1a1a2e; color: white; border-color: #1a1a2e; font-weight: 700; }}
+    .date-nav {{ margin: 16px 20px 0; display: flex; align-items: center; position: relative; }}
+    .nav-arrow {{ background: white; border: 1px solid #e0e4ff; color: #555; font-size: 11px; padding: 6px 13px; cursor: pointer; transition: all 0.15s; line-height: 1; }}
+    .nav-arrow:hover {{ background: #f0f4ff; }}
+    .nav-arrow:disabled {{ opacity: 0.3; cursor: default; }}
+    .nav-arrow:first-child {{ border-radius: 8px 0 0 8px; border-right: none; }}
+    .nav-arrow:last-child  {{ border-radius: 0 8px 8px 0; border-left: none; }}
+    .nav-date {{ background: white; border: 1px solid #e0e4ff; color: #1a1a2e; font-size: 14px; font-weight: 700; padding: 6px 20px; cursor: pointer; transition: background 0.15s; letter-spacing: 0.3px; }}
+    .nav-date:hover {{ background: #f0f4ff; }}
+    .cal-pop {{ display: none; position: absolute; top: 38px; left: 0; z-index: 200; background: white; border: 1px solid #e0e4ff; border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 260px; }}
+    .cal-pop.open {{ display: block; }}
     .container {{ margin: 20px 20px 32px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }}
     .card {{ background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }}
     .card.no-event {{ opacity: 0.55; }}
@@ -702,12 +705,10 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
 <div class="main-area">
 <div id="trend-banner" style="margin:16px 20px 0;background:#f8f9ff;border:1px solid #e0e4ff;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"></div>
 <div class="date-nav" id="date-nav">
-  <div class="month-nav" id="month-nav">
-{month_btns}
-  </div>
-  <div class="day-nav" id="day-nav">
-{day_btns}
-  </div>
+  <button class="nav-arrow" id="prev-btn" onclick="navDate(-1)">◀</button>
+  <button class="nav-date"  id="cur-date-btn" onclick="toggleCal()">{latest}</button>
+  <button class="nav-arrow" id="next-btn" onclick="navDate(1)">▶</button>
+  <div class="cal-pop" id="cal-pop"></div>
 </div>
 <div class="container">
   <div class="card">
@@ -826,8 +827,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
       if (el) el.innerHTML = renderSummary(el.textContent);
     }});
     _activeDate = Object.keys(summaries).sort((a,b) => b.localeCompare(a))[0] || '';
-    const activeMonthBtn = document.querySelector('.month-btn.active');
-    if (activeMonthBtn) renderCalendar(activeMonthBtn.dataset.ym);
+    updateNavBtns();
     renderWeeklyTrend();
   }}
   function renderWeeklyTrend() {{
@@ -869,6 +869,78 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     }}).join('');
     el.innerHTML = `<span style="color:#666;font-size:11px;font-weight:700;white-space:nowrap">📊 ${{from}}~${{to}}</span><div style="display:flex;gap:6px;flex-wrap:wrap">${{pills}}</div>`;
   }}
+  function navDate(dir) {{
+    const dates = Object.keys(summaries).sort();
+    const idx = dates.indexOf(_activeDate);
+    const ni = idx + dir;
+    if (ni >= 0 && ni < dates.length) switchDate(dates[ni]);
+  }}
+  function updateNavBtns() {{
+    const dates = Object.keys(summaries).sort();
+    const idx = dates.indexOf(_activeDate);
+    const prev = g('prev-btn'), next = g('next-btn');
+    if (prev) prev.disabled = idx <= 0;
+    if (next) next.disabled = idx >= dates.length - 1;
+    const btn = g('cur-date-btn');
+    if (btn) btn.textContent = _activeDate;
+  }}
+  let _calMonth = '';
+  function toggleCal() {{
+    const pop = g('cal-pop');
+    if (!pop) return;
+    if (pop.classList.contains('open')) {{ pop.classList.remove('open'); return; }}
+    _calMonth = _activeDate.slice(0, 7);
+    renderCalPop(_calMonth);
+    pop.classList.add('open');
+  }}
+  function navCalMonth(dir) {{
+    const [y, m] = _calMonth.split('-').map(Number);
+    const nd = new Date(y, m - 1 + dir, 1);
+    _calMonth = `${{nd.getFullYear()}}-${{String(nd.getMonth()+1).padStart(2,'0')}}`;
+    renderCalPop(_calMonth);
+  }}
+  function renderCalPop(ym) {{
+    const [year, month] = ym.split('-').map(Number);
+    const dim = new Date(year, month, 0).getDate();
+    const firstDow = (new Date(year, month-1, 1).getDay() + 6) % 7;
+    const now = new Date();
+    const todayStr = `${{now.getFullYear()}}-${{String(now.getMonth()+1).padStart(2,'0')}}-${{String(now.getDate()).padStart(2,'0')}}`;
+    const allDates = Object.keys(summaries);
+    const hasPrev = allDates.some(d => d < `${{ym}}-01`);
+    const hasNext = allDates.some(d => d > `${{ym}}-32`);
+    const DOW = ['월','화','수','목','금','토','일'];
+    let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <button onclick="navCalMonth(-1)" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 8px;opacity:${{hasPrev?1:0.25}};pointer-events:${{hasPrev?'auto':'none'}}">◀</button>
+      <span style="font-size:13px;font-weight:700;color:#1a1a2e">${{year}}년 ${{month}}월</span>
+      <button onclick="navCalMonth(1)"  style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 8px;opacity:${{hasNext?1:0.25}};pointer-events:${{hasNext?'auto':'none'}}">▶</button>
+    </div>`;
+    html += '<table style="width:100%;border-collapse:separate;border-spacing:3px">';
+    html += '<tr>' + DOW.map(h => `<th style="text-align:center;font-size:10px;color:#aaa;padding:2px 0;font-weight:600">${{h}}</th>`).join('') + '</tr>';
+    let day = 1;
+    for (let row = 0; row < 6; row++) {{
+      if (day > dim) break;
+      html += '<tr>';
+      for (let col = 0; col < 7; col++) {{
+        if (row === 0 && col < firstDow || day > dim) {{ html += '<td></td>'; }}
+        else {{
+          const d = `${{ym}}-${{String(day).padStart(2,'0')}}`;
+          const isAct = d === _activeDate, isTod = d === todayStr;
+          const bg  = isAct ? '#1a1a2e' : (isTod ? '#eef2ff' : 'transparent');
+          const clr = isAct ? 'white'   : (isTod ? '#1d4ed8' : '#333');
+          html += `<td onclick="switchDate('${{d}}');toggleCal()" style="cursor:pointer;text-align:center;padding:6px 3px;border-radius:7px;background:${{bg}}">
+            <span style="font-size:13px;color:${{clr}};font-weight:${{(isAct||isTod)?'700':'400'}}">${{day}}</span>
+          </td>`;
+          day++;
+        }}
+      }}
+      html += '</tr>';
+    }}
+    html += '</table>';
+    g('cal-pop').innerHTML = html;
+  }}
+  document.addEventListener('click', e => {{
+    if (!e.target.closest('#date-nav')) g('cal-pop')?.classList.remove('open');
+  }});
   function renderCalendar(ym) {{
     const [year, month] = ym.split('-').map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -993,16 +1065,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     g('lotte-summary').innerHTML   = renderSummary(sfield(obj,'lotte','body',NO_BODY));
     g('header-date').textContent = '기준일: ' + d;
     _activeDate = d;
-    document.querySelectorAll('.day-btn').forEach(b => b.classList.toggle('active', b.dataset.date === d));
-    const now2 = new Date();
-    const todayStr2 = `${{now2.getFullYear()}}-${{String(now2.getMonth()+1).padStart(2,'0')}}-${{String(now2.getDate()).padStart(2,'0')}}`;
-    document.querySelectorAll('#day-nav td[data-date]').forEach(td => {{
-      const td_d = td.dataset.date, isAct = td_d === d, isTod = td_d === todayStr2, hasDat = !!summaries[td_d];
-      td.style.background = isAct ? '#1a1a2e' : (hasDat ? (isTod ? '#eef2ff' : 'white') : 'transparent');
-      td.style.border     = isAct ? '1px solid #1a1a2e' : (hasDat ? `1px solid ${{isTod ? '#93c5fd' : '#e8eaf0'}}` : 'none');
-      const num = td.querySelector('.cal-num');
-      if (num) {{ num.style.color = isAct ? 'white' : (hasDat ? (isTod ? '#1d4ed8' : '#333') : '#ddd'); num.style.fontWeight = (isAct||isTod) ? '700' : '400'; }}
-    }});
+    updateNavBtns();
   }}
   function switchMonth(ym) {{
     document.querySelectorAll('.month-btn').forEach(b => b.classList.toggle('active', b.dataset.ym === ym));

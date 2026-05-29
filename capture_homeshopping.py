@@ -832,11 +832,16 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     if (week.length < 2) return;
     const tagCounts = {{}}, tagChannels = {{}};
     const brands = ['gs','cj','lotte','hyundai'];
+    const seenEvents = new Set();
     for (const d of week) {{
       const obj = summaries[d] || {{}};
       for (const brand of brands) {{
-        const body = (obj[brand] && obj[brand].body) || '';
-        for (const line of body.split('\\n')) {{
+        const b = obj[brand];
+        if (!b || !b.body) continue;
+        const eventKey = brand + '|' + (b.start || d);
+        if (seenEvents.has(eventKey)) continue;
+        seenEvents.add(eventKey);
+        for (const line of b.body.split('\\n')) {{
           const m = line.trim().match(/^([가-힣a-zA-Z·]+):\s*.+/);
           if (!m) continue;
           const tag = m[1];

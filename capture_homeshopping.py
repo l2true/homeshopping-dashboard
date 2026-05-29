@@ -700,6 +700,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
   </a>
 </aside>
 <div class="main-area">
+<div id="trend-banner" style="margin:16px 20px 0;background:#f8f9ff;border:1px solid #e0e4ff;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"></div>
 <div class="date-nav" id="date-nav">
   <div class="month-nav" id="month-nav">
 {month_btns}
@@ -821,6 +822,41 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
       const el = g(b+'-summary');
       if (el) el.innerHTML = renderSummary(el.textContent);
     }});
+    renderWeeklyTrend();
+  }}
+  function renderWeeklyTrend() {{
+    const el = g('trend-banner');
+    if (!el) return;
+    const allDates = Object.keys(summaries).sort((a,b) => b.localeCompare(a));
+    const week = allDates.slice(0, 7);
+    if (week.length < 2) return;
+    const tagCounts = {{}}, tagChannels = {{}};
+    const brands = ['gs','cj','lotte','hyundai'];
+    for (const d of week) {{
+      const obj = summaries[d] || {{}};
+      for (const brand of brands) {{
+        const body = (obj[brand] && obj[brand].body) || '';
+        for (const line of body.split('\\n')) {{
+          const m = line.trim().match(/^([가-힣a-zA-Z·]+):\s*.+/);
+          if (!m) continue;
+          const tag = m[1];
+          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+          if (!tagChannels[tag]) tagChannels[tag] = new Set();
+          tagChannels[tag].add(brand);
+        }}
+      }}
+    }}
+    const sorted = Object.entries(tagCounts).sort((a,b) => b[1]-a[1]);
+    if (!sorted.length) return;
+    const from = week[week.length-1].slice(5).replace('-','/');
+    const to   = week[0].slice(5).replace('-','/');
+    const pills = sorted.slice(0, 5).map(([tag, cnt]) => {{
+      const c = TAG_COLORS[tag] || {{bg:'#f3f4f6',color:'#374151',border:'#d1d5db'}};
+      const ch = tagChannels[tag] ? tagChannels[tag].size : 0;
+      const hint = ch === 4 ? ' · 4개사 공통' : ch >= 3 ? ` · ${{ch}}개사` : '';
+      return `<span style="background:${{c.bg}};color:${{c.color}};border:1px solid ${{c.border}};padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;white-space:nowrap">${{tag}} ${{cnt}}건${{hint}}</span>`;
+    }}).join('');
+    el.innerHTML = `<span style="color:#666;font-size:11px;font-weight:700;white-space:nowrap">📊 ${{from}}~${{to}}</span><div style="display:flex;gap:6px;flex-wrap:wrap">${{pills}}</div>`;
   }}
   document.addEventListener('DOMContentLoaded', renderAll);
   const summaries = {summaries_js};

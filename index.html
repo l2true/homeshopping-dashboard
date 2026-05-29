@@ -303,10 +303,11 @@
         if (row === 0 && col < firstDow || day > dim) { html += '<td></td>'; }
         else {
           const d = `${ym}-${String(day).padStart(2,'0')}`;
-          const isAct = d === _activeDate, isTod = d === todayStr;
+          const isAct = d === _activeDate, isTod = d === todayStr, hasData = !!summaries[d];
           const bg  = isAct ? '#1a1a2e' : (isTod ? '#eef2ff' : 'transparent');
-          const clr = isAct ? 'white'   : (isTod ? '#1d4ed8' : '#333');
-          html += `<td onclick="switchDate('${d}');toggleCal()" style="cursor:pointer;text-align:center;padding:6px 3px;border-radius:7px;background:${bg}">
+          const clr = isAct ? 'white' : (hasData ? (isTod ? '#1d4ed8' : '#333') : '#ccc');
+          const onclick = hasData ? `onclick="switchDate('${d}');toggleCal()"` : '';
+          html += `<td ${onclick} style="${hasData?'cursor:pointer;':''}text-align:center;padding:6px 3px;border-radius:7px;background:${bg}">
             <span style="font-size:13px;color:${clr};font-weight:${(isAct||isTod)?'700':'400'}">${day}</span>
           </td>`;
           day++;

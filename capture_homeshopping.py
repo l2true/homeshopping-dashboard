@@ -129,6 +129,16 @@ def click_next_tab(page, home_label='홈', skip_labels=None):
     """, [home_label, skip_labels or []])
 
 
+def scroll_to_load(page, steps=6, delay_ms=500):
+    """lazy-load 트리거: 단계적 스크롤 후 맨 위로 복귀"""
+    total = page.evaluate("document.body.scrollHeight")
+    for i in range(1, steps + 1):
+        page.evaluate(f"window.scrollTo(0, {int(total * i / steps)})")
+        page.wait_for_timeout(delay_ms)
+    page.evaluate("window.scrollTo(0, 0)")
+    page.wait_for_timeout(300)
+
+
 def capture_full(page, path):
     page.screenshot(path=path, full_page=True, timeout=60000, animations='disabled')
     return path
@@ -262,6 +272,7 @@ def run_cj(browser, archive_dir):
     tab_name = click_next_tab(page, skip_labels=CJ_SKIP_TABS)
     page.wait_for_timeout(2000)
     close_popups(page)
+    scroll_to_load(page)
     capture_full(page, os.path.join(archive_dir, 'cj_next_tab_full.png'))
     capture_banner(page, os.path.join(archive_dir, 'cj_banner.png'))
     save_page_text(page, os.path.join(archive_dir, 'cj_page_text.txt'))

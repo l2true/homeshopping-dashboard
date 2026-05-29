@@ -669,7 +669,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     .screenshot-wrap p {{ font-size: 11px; color: #999; }}
     .screenshot-wrap img {{ width: 100%; border-radius: 8px; border: 1px solid #eee; cursor: pointer; transition: transform 0.2s; }}
     .screenshot-wrap img:hover {{ transform: scale(1.02); }}
-    .summary {{ flex: 1; padding: 16px 20px; overflow-y: auto; max-height: 600px; font-size: 13px; line-height: 1.8; color: #444; white-space: pre-wrap; }}
+    .summary {{ flex: 1; padding: 16px 20px; overflow-y: auto; max-height: 600px; display: flex; flex-direction: column; gap: 8px; }}
     .modal {{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: flex-start; padding: 24px; overflow-y: auto; }}
     .modal.open {{ display: flex; }}
     .modal img {{ max-width: 390px; width: 100%; border-radius: 12px; margin: auto; }}
@@ -782,6 +782,44 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
   <img id="modal-img" src="" alt="">
 </div>
 <script>
+  const TAG_COLORS = {{
+    '카드':    {{bg:'#dbeafe',color:'#1d4ed8',border:'#93c5fd'}},
+    '적립':    {{bg:'#dcfce7',color:'#166534',border:'#86efac'}},
+    '쿠폰':    {{bg:'#fce7f3',color:'#9d174d',border:'#f9a8d4'}},
+    '할인':    {{bg:'#ffedd5',color:'#c2410c',border:'#fdba74'}},
+    '특가':    {{bg:'#fef9c3',color:'#854d0e',border:'#fde047'}},
+    '경품':    {{bg:'#f5f3ff',color:'#6d28d9',border:'#c4b5fd'}},
+    '무료배송':{{bg:'#e0f2fe',color:'#0369a1',border:'#7dd3fc'}},
+    '사은품':  {{bg:'#f0fdf4',color:'#15803d',border:'#86efac'}},
+  }};
+  function renderSummary(text) {{
+    if (!text) return '';
+    if (text === NO_BODY) return `<span style="color:#aaa;font-size:12px">${{text}}</span>`;
+    const lines = text.split('\\n');
+    const rows = [];
+    for (const line of lines) {{
+      const t = line.trim();
+      if (!t || t === '혜택:') continue;
+      const m = t.match(/^([가-힣a-zA-Z·]+):\s*(.+)$/);
+      if (m) {{
+        const c = TAG_COLORS[m[1]] || {{bg:'#f3f4f6',color:'#374151',border:'#d1d5db'}};
+        rows.push(`<div style="display:flex;align-items:flex-start;gap:7px">
+          <span style="background:${{c.bg}};color:${{c.color}};border:1px solid ${{c.border}};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;margin-top:2px">${{m[1]}}</span>
+          <span style="font-size:13px;color:#444;line-height:1.5">${{m[2]}}</span>
+        </div>`);
+      }} else {{
+        rows.push(`<div style="font-size:13px;color:#666">${{t}}</div>`);
+      }}
+    }}
+    return rows.join('') || `<span style="color:#aaa;font-size:12px">${{text}}</span>`;
+  }}
+  function renderAll() {{
+    ['gs','cj','lotte','hyundai'].forEach(b => {{
+      const el = g(b+'-summary');
+      if (el) el.innerHTML = renderSummary(el.textContent);
+    }});
+  }}
+  document.addEventListener('DOMContentLoaded', renderAll);
   const summaries = {summaries_js};
   const NO_BODY = '캡처 완료 — 행사 내용은 위 이미지를 확인하세요';
   function g(id) {{ return document.getElementById(id); }}
@@ -858,10 +896,10 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     g('gs-period').textContent    = sfield(obj,'gs','period',d);
     g('cj-period').textContent    = sfield(obj,'cj','period',d);
     g('lotte-period').textContent = sfield(obj,'lotte','period',d);
-    g('hyundai-summary').textContent = noEvent ? '' : sfield(obj,'hyundai','body',NO_BODY);
-    g('gs-summary').textContent      = sfield(obj,'gs','body',NO_BODY);
-    g('cj-summary').textContent      = sfield(obj,'cj','body',NO_BODY);
-    g('lotte-summary').textContent   = sfield(obj,'lotte','body',NO_BODY);
+    g('hyundai-summary').innerHTML = renderSummary(noEvent ? '' : sfield(obj,'hyundai','body',NO_BODY));
+    g('gs-summary').innerHTML      = renderSummary(sfield(obj,'gs','body',NO_BODY));
+    g('cj-summary').innerHTML      = renderSummary(sfield(obj,'cj','body',NO_BODY));
+    g('lotte-summary').innerHTML   = renderSummary(sfield(obj,'lotte','body',NO_BODY));
     g('header-date').textContent = '기준일: ' + d;
     document.querySelectorAll('.day-btn').forEach(b => b.classList.toggle('active', b.dataset.date === d));
   }}

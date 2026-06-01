@@ -177,44 +177,19 @@ def run_hyundai(browser, archive_dir):
                     page.wait_for_timeout(300)
         except: pass
     close_popups(page)
+    # 탭 클릭 없이 기본 랜딩 페이지 그대로 캡처
+    # (서브탭 클릭 시 상품 리스트로 이동해 사은품 등 이벤트 혜택 배너가 사라짐)
     tab_name = page.evaluate("""
-        (skipLabels) => {
-            const tabs = Array.from(document.querySelectorAll('[class*=main] nav a, .sc-dp-display nav a'));
-            const idx = tabs.findIndex(a => a.innerText.trim() === '현대홈쇼핑');
-            if (idx < 0) return null;
-            let nextIdx = idx + 1;
-            if (nextIdx < tabs.length && skipLabels.length > 0) {
-                const nextText = tabs[nextIdx].innerText.trim();
-                const shouldSkip = skipLabels.some(s => nextText.includes(s));
-                if (shouldSkip && nextIdx + 1 < tabs.length) nextIdx++;
-            }
-            if (nextIdx < tabs.length) {
-                tabs[nextIdx].click();
-                return tabs[nextIdx].innerText.trim();
-            }
-            return null;
-        }
-    """, HYUNDAI_SKIP_TABS)
-    # 현대 탭 목록 별도 저장 (현대홈쇼핑 기준 이후 탭, 최대 15개·중복 제거)
-    hyundai_tabs = page.evaluate("""
         () => {
             const tabs = Array.from(document.querySelectorAll('[class*=main] nav a, .sc-dp-display nav a'));
             const idx = tabs.findIndex(a => a.innerText.trim() === '현대홈쇼핑');
-            if (idx < 0) return [];
-            const seen = new Set();
-            const result = [];
-            for (const a of tabs.slice(idx)) {
-                const t = a.innerText.split('\\n')[0].trim();
-                if (!t) continue;
-                if (seen.has(t)) break;
-                seen.add(t);
-                result.push(t);
-                if (result.length >= 15) break;
-            }
-            return result;
+            if (idx < 0) return null;
+            // 탭명만 읽고 클릭은 하지 않음
+            const next = tabs[idx + 1];
+            return next ? next.innerText.trim() : null;
         }
     """)
-    save_tab_names(archive_dir, 'hyundai', hyundai_tabs or [])
+    save_tab_names(archive_dir, 'hyundai', [tab_name] if tab_name else [])
     page.wait_for_timeout(2000)
     close_popups(page)
     scroll_to_load(page)

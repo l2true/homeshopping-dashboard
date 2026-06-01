@@ -469,9 +469,12 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
         if not os.path.exists(img_path):
             summaries[brand] = {'period': '', 'name': '', 'body': '이미지 없음'}
             continue
+        img_priority = brand == 'hyundai'
         prompt = (
             f'{label} 홈쇼핑 모바일 캡처본입니다. '
-            '텍스트 원문을 우선 참고하고, 이미지는 시각적 구성 파악에 활용해주세요.\n\n'
+            + ('이미지를 최우선으로 분석하고, 텍스트는 보조 참고만 하세요. 이미지에 보이는 혜택은 텍스트에 없어도 반드시 추출하세요.\n\n'
+               if img_priority else
+               '텍스트 원문을 우선 참고하고, 이미지는 시각적 구성 파악에 활용해주세요.\n\n')
             + (extra + '\n\n' if extra else '') +
             '규칙:\n'
             '- **, ##, --- 등 마크다운 기호 절대 사용 금지\n'

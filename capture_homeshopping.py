@@ -129,7 +129,7 @@ def click_next_tab(page, home_label='홈', skip_labels=None):
     """, [home_label, skip_labels or []])
 
 
-def scroll_to_load(page, steps=6, delay_ms=500):
+def scroll_to_load(page, steps=6, delay_ms=300):
     """lazy-load 트리거: 단계적 스크롤 후 맨 위로 복귀"""
     total = page.evaluate("document.body.scrollHeight")
     for i in range(1, steps + 1):
@@ -177,20 +177,27 @@ def run_hyundai(browser, archive_dir):
                     page.wait_for_timeout(300)
         except: pass
     close_popups(page)
-    # 탭 클릭 없이 기본 랜딩 페이지 그대로 캡처
-    # (서브탭 클릭 시 상품 리스트로 이동해 사은품 등 이벤트 혜택 배너가 사라짐)
-    tab_name = page.evaluate("""
+    # 현대홈쇼핑 다음 이벤트 탭 URL을 추출해 직접 이동
+    # (탭 클릭 방식은 SPA가 서브탭을 자동 선택해 이벤트 랜딩 사라짐)
+    event_info = page.evaluate("""
         () => {
-            const tabs = Array.from(document.querySelectorAll('[class*=main] nav a, .sc-dp-display nav a'));
-            const idx = tabs.findIndex(a => a.innerText.trim() === '현대홈쇼핑');
-            if (idx < 0) return null;
-            // 탭명만 읽고 클릭은 하지 않음
+            const tabs = Array.from(document.querySelectorAll('[data-maindispseq]'));
+            const idx = tabs.findIndex(el =>
+                (el.getAttribute('data-appmaincallurl') || '').includes('frstDispTryNmCd=newHome')
+            );
+            if (idx < 0 || idx + 1 >= tabs.length) return null;
             const next = tabs[idx + 1];
-            return next ? next.innerText.trim() : null;
+            const callUrl = next.getAttribute('data-appmaincallurl') || '';
+            const name = (next.getAttribute('data-rel') || next.innerText || '').trim().split('\\n').join(' ');
+            return {url: callUrl ? 'https://www.hmall.com' + callUrl : null, name: name};
         }
     """)
+    tab_name = None
+    if event_info and event_info.get('url'):
+        tab_name = event_info['name']
+        page.goto(event_info['url'], wait_until='domcontentloaded', timeout=30000)
     save_tab_names(archive_dir, 'hyundai', [tab_name] if tab_name else [])
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(2500)
     close_popups(page)
     scroll_to_load(page)
     capture_full(page, os.path.join(archive_dir, 'hyundai_next_tab_full.png'))
@@ -200,7 +207,7 @@ def run_hyundai(browser, archive_dir):
     return tab_name
 
 
-def _run_with_retry(func, browser, archive_dir, retries=2):
+def _run_with_retry(func, browser, archive_dir, retries=1):
     """캡처 함수 실패 시 재시도 (최대 retries회)"""
     last_err = None
     for attempt in range(retries + 1):
@@ -241,7 +248,7 @@ HYUNDAI_SKIP_TABS = ['오감쇼']                    # 현대: 방송 프로그�
 def run_cj(browser, archive_dir):
     """CJ온스타일 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
-    page.goto('https://display.cjonstyle.com/m/homeTab/main?hmtabMenuId=H00005', wait_until='domcontentloaded', timeout=60000)
+    page.goto('https://display.cjonstyle.com/m/homeTab/main?hmtabMenuId=H00005', wait_until='domcontentloaded', timeout=30000)
     page.wait_for_timeout(3000)
     close_popups(page)
     save_tab_names(archive_dir, 'cj', get_all_tabs(page))
@@ -279,7 +286,7 @@ def close_popups_lotte(page):
 def run_lotte(browser, archive_dir):
     """롯데홈쇼핑 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
-    page.goto('https://m.lotteimall.com', wait_until='domcontentloaded', timeout=60000)
+    page.goto('https://m.lotteimall.com', wait_until='domcontentloaded', timeout=30000)
     page.wait_for_timeout(3000)
     close_popups_lotte(page)
     page.wait_for_timeout(500)
@@ -337,7 +344,7 @@ def _ask_claude(img_path, prompt, text_path=None, banner_path=None):
     proc = subprocess.run(
         ['claude', '-p', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'],
         input=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
-        capture_output=True, env=env, timeout=120,
+        capture_output=True, env=env, timeout=90,
     )
     for line in proc.stdout.decode('utf-8', errors='replace').splitlines():
         try:
@@ -1128,6 +1135,15 @@ if __name__ == '__main__':
             log_f.flush()
     sys.stdout = Tee()
     sys.stderr = Tee()  # 에러도 로그에 기록
+
+    import time as _time
+    _script_start = _time.time()
+    def check_timeout(label='', limit_min=90):
+        elapsed = (_time.time() - _script_start) / 60
+        if elapsed > limit_min:
+            print(f'[경고] 실행 {elapsed:.0f}분 초과 ({limit_min}분 제한) — {label}')
+            return True
+        return False
 
     print(f'\n[{TODAY}] 홈쇼핑 자동 캡처 시작...')
 

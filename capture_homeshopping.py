@@ -551,7 +551,7 @@ def consolidate_ongoing_events():
     # 이름 정규화: 채널명 prefix 제거 + 공백 제거
     _PREFIX = _re_module.compile(r'^(GS샵?|CJ온스타일|롯데홈쇼핑|현대홈쇼핑|현대Hmall|GS SHOP)\s*', _re_module.IGNORECASE)
     def _norm_name(n):
-        return _PREFIX.sub('', n).strip().replace(' ', '')
+        return _PREFIX.sub('', n).strip().replace(' ', '').lower()
 
     # 2. 브랜드별로 정규화된 이름 기준 그룹화 (start가 달라도 같은 행사명이면 통합)
     # event_key → [(date, body, period, start), ...]
@@ -578,7 +578,8 @@ def consolidate_ongoing_events():
         from collections import Counter
         name_counts = Counter(e[4] for e in entries)
         best_name = name_counts.most_common(1)[0][0]
-        best_start = min(e[3] for e in entries if e[3])
+        starts = [e[3] for e in entries if e[3]]
+        best_start = min(starts) if starts else ''
 
         # 모든 날짜의 혜택 줄 수집 → 혜택종류별 unique detail
         benefit_map = OrderedDict()
@@ -602,11 +603,14 @@ def consolidate_ongoing_events():
         if not benefit_map:
             continue
 
-        # 통합 body 생성 (혜택종류별 첫 번째 또는 가장 많이 등장한 detail 우선)
+        # 통합 body 생성 — 이미 묶인 요약(·, 등 포함)을 우선 선택, 없으면 가장 짧은 것
         lines = ['혜택:']
         for btype, details in benefit_map.items():
-            # 가장 정보가 많은 (긴) detail을 대표로
-            best = max(details, key=len)
+            aggregated = [d for d in details if '·' in d or d.endswith('등)') or d.endswith('등')]
+            if aggregated:
+                best = max(aggregated, key=len)  # 묶인 것 중 가장 정보 많은 것
+            else:
+                best = min(details, key=len)     # 아니면 가장 간결한 것
             lines.append(f'  {btype}: {best}')
         consolidated_body = '\n'.join(lines)
 

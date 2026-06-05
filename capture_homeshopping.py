@@ -470,7 +470,9 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '- 날짜를 전혀 확인할 수 없으면 기간 행 자체를 생략\n'
             '- "상반기", "기간 미확인" 등 모호한 표현 절대 금지\n\n'
             '혜택종류는 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서 선택하세요.\n'
-            '혜택상세에는 혜택 내용과 함께 적용 조건(카드사명, 선착순 인원, 최대 금액, 기간 등)도 함께 적어주세요.\n'
+            '혜택상세에는 혜택 내용과 함께 적용 조건(선착순 인원, 최대 금액, 기간 등)을 적어주세요.\n'
+            '카드 혜택은 특정 카드사명(삼성카드, KB카드, 현대카드 등)을 절대 기재하지 마세요. '
+            '카드사는 매일 바뀌므로 "카드 7% 즉시할인", "카드 5% 청구할인" 형식으로만 작성하세요.\n'
             '혜택이 여러 개면 줄을 나눠 작성하되, 같은 혜택종류는 반드시 하나로 묶어 작성하세요.\n'
             '예) 특가가 여러 브랜드에 걸쳐 있으면: "특가: 최대 85% 할인 (나인식스뉴욕·아디다스·MLB 등)"\n'
             '브랜드를 개별 나열하지 말고 최대 혜택값과 대표 브랜드 2~3개만 표기하세요. 혜택 줄 수는 최대 5줄.'
@@ -504,6 +506,18 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             print(f'배너 삭제 실패: {e}')
 
     return summaries
+
+
+import re as _re_module
+_CARD_NAMES = _re_module.compile(
+    r'(삼성|현대|KB국민|국민|신한|롯데|하나|우리|NH농협|농협|씨티|토스|카카오|BC|IBK기업|기업|수협|광주|전북|제주|산업|우체국)\s*카드\s*'
+)
+
+def _clean_card_detail(detail: str) -> str:
+    """카드 혜택 상세에서 특정 카드사명 제거"""
+    cleaned = _CARD_NAMES.sub('카드 ', detail).strip()
+    cleaned = _re_module.sub(r'카드\s+카드', '카드', cleaned).strip()
+    return cleaned
 
 
 def consolidate_ongoing_events():
@@ -561,6 +575,8 @@ def consolidate_ongoing_events():
                     btype = btype.strip()
                     detail = detail.strip()
                     if btype and detail:
+                        if btype == '카드':
+                            detail = _clean_card_detail(detail)
                         if btype not in benefit_map:
                             benefit_map[btype] = []
                         if detail not in benefit_map[btype]:

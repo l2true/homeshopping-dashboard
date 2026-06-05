@@ -471,7 +471,9 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '- "상반기", "기간 미확인" 등 모호한 표현 절대 금지\n\n'
             '혜택종류는 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서 선택하세요.\n'
             '혜택상세에는 혜택 내용과 함께 적용 조건(카드사명, 선착순 인원, 최대 금액, 기간 등)도 함께 적어주세요.\n'
-            '혜택이 여러 개면 줄을 나눠 작성하세요.'
+            '혜택이 여러 개면 줄을 나눠 작성하되, 같은 혜택종류는 반드시 하나로 묶어 작성하세요.\n'
+            '예) 특가가 여러 브랜드에 걸쳐 있으면: "특가: 최대 85% 할인 (나인식스뉴욕·아디다스·MLB 등)"\n'
+            '브랜드를 개별 나열하지 말고 최대 혜택값과 대표 브랜드 2~3개만 표기하세요. 혜택 줄 수는 최대 5줄.'
         )
         text_path   = img_path.replace('_next_tab_full.png', '_page_text.txt')
         banner_path = img_path.replace('_next_tab_full.png', '_banner.png')

@@ -474,7 +474,7 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '- 종료일만 알면 "~ M/DD" 형식으로 작성\n'
             '- 날짜를 전혀 확인할 수 없으면 기간 행 자체를 생략\n'
             '- "상반기", "기간 미확인" 등 모호한 표현 절대 금지\n\n'
-            '혜택종류는 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서 선택하세요.\n'
+            '혜택종류는 반드시 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서만 선택하세요. 그 외 표현(하루만혜택, 단독, 오늘만 등)은 특가로 통일하세요.\n'
             '혜택상세에는 혜택 내용과 함께 적용 조건(선착순 인원, 최대 금액, 기간 등)을 적어주세요.\n'
             '카드 혜택은 특정 카드사명(삼성카드, KB카드, 현대카드 등)을 절대 기재하지 마세요. '
             '카드사는 매일 바뀌므로 "카드 7% 즉시할인", "카드 5% 청구할인" 형식으로만 작성하세요.\n'
@@ -592,9 +592,12 @@ def consolidate_ongoing_events():
                     btype, _, detail = t.partition(':')
                     btype = btype.strip()
                     detail = detail.strip()
-                    if btype and detail:
+                    _VALID_TYPES = {'카드','적립','사은품','경품','할인','특가','쿠폰'}
+                if btype and detail:
                         if btype == '카드':
                             detail = _clean_card_detail(detail)
+                        if btype not in _VALID_TYPES:
+                            btype = '특가'  # 비표준 혜택종류 → 특가로 통일
                         if btype not in benefit_map:
                             benefit_map[btype] = []
                         if detail not in benefit_map[btype]:

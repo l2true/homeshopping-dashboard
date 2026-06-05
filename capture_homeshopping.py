@@ -393,9 +393,14 @@ def update_promo_start(summaries):
 
 
 def parse_summary_text(text):
-    """요약 텍스트에서 기간/프로모션명/혜택 본문 분리"""
+    """요약 텍스트에서 기간/프로모션명/혜택 본문 분리.
+    '---' 이후의 Claude 부가 설명은 제거한다.
+    """
     period, name, body_lines = '', '', []
     for line in text.strip().splitlines():
+        # --- 구분선 이후는 Claude 설명 → 무시
+        if line.strip().startswith('---'):
+            break
         if line.startswith('기간:'):
             period = line[3:].strip()
         elif line.startswith('프로모션명:'):
@@ -543,8 +548,13 @@ def consolidate_ongoing_events():
     if not all_summaries:
         return
 
-    # 2. 브랜드별로 (name, start) 그룹화
-    # event_key → [(date, body, period), ...]
+    # 이름 정규화: 채널명 prefix 제거 + 공백 제거
+    _PREFIX = _re_module.compile(r'^(GS샵?|CJ온스타일|롯데홈쇼핑|현대홈쇼핑|현대Hmall|GS SHOP)\s*', _re_module.IGNORECASE)
+    def _norm_name(n):
+        return _PREFIX.sub('', n).strip().replace(' ', '')
+
+    # 2. 브랜드별로 정규화된 이름 기준 그룹화 (start가 달라도 같은 행사명이면 통합)
+    # event_key → [(date, body, period, start), ...]
     event_groups = defaultdict(list)
     for date, summaries in all_summaries.items():
         for brand, s in summaries.items():
@@ -555,17 +565,24 @@ def consolidate_ongoing_events():
             body = s.get('body', '').strip()
             if not name or name in ('해당없음', '요약 생성 실패'):
                 continue
-            event_groups[(brand, name, start)].append((date, body, s.get('period', '')))
+            norm = _norm_name(name)
+            event_groups[(brand, norm)].append((date, body, s.get('period', ''), start, name))
 
     # 3. 2일 이상 이어지는 행사만 통합
     updated = 0
-    for (brand, name, start), entries in event_groups.items():
+    for (brand, norm), entries in event_groups.items():
         if len(entries) < 2:
             continue
 
+        # 가장 많이 등장한 이름 + 가장 이른 start 선택
+        from collections import Counter
+        name_counts = Counter(e[4] for e in entries)
+        best_name = name_counts.most_common(1)[0][0]
+        best_start = min(e[3] for e in entries if e[3])
+
         # 모든 날짜의 혜택 줄 수집 → 혜택종류별 unique detail
         benefit_map = OrderedDict()
-        for _, body, _ in entries:
+        for _, body, _, _, _ in entries:
             for line in body.split('\n'):
                 t = line.strip()
                 if not t or t == '혜택:':
@@ -593,18 +610,27 @@ def consolidate_ongoing_events():
             lines.append(f'  {btype}: {best}')
         consolidated_body = '\n'.join(lines)
 
-        # 가장 긴 period 선택
-        best_period = max((p for _, _, p in entries if p), key=len, default='')
+        # 날짜 형식인 period만 후보로 — "5/25 ~ 6/7" 같이 숫자/슬래시/물결 포함
+        valid_periods = [e[2] for e in entries if e[2] and _re_module.search(r'\d+/\d+', e[2])]
+        best_period = max(valid_periods, key=len, default='')
 
-        # 4. 해당 행사 모든 날짜 업데이트
+        # 4. 해당 행사 모든 날짜 업데이트 (이름·start·period·body 모두 통일)
         changed_dates = []
-        for date, body, period in entries:
-            if body == consolidated_body:
+        for date, body, period, start, name in entries:
+            needs_update = (
+                body != consolidated_body or
+                name != best_name or
+                start != best_start or
+                (best_period and period != best_period)
+            )
+            if not needs_update:
                 continue
             path = os.path.join(ARCHIVE_DIR, date, 'summary.json')
             try:
                 with open(path, encoding='utf-8') as f:
                     s = json.load(f)
+                s[brand]['name'] = best_name
+                s[brand]['start'] = best_start
                 s[brand]['body'] = consolidated_body
                 if best_period:
                     s[brand]['period'] = best_period
@@ -616,7 +642,7 @@ def consolidate_ongoing_events():
                 print(f'  consolidate 실패 {date}/{brand}: {e}')
 
         if changed_dates:
-            print(f'  [{brand}] {name} ({start}~) → {len(changed_dates)}일 통합 업데이트')
+            print(f'  [{brand}] {best_name} ({best_start}~) → {len(changed_dates)}일 통합 업데이트')
 
     print(f'consolidate 완료: {updated}건 업데이트')
 

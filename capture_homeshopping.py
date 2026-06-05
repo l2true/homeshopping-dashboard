@@ -506,6 +506,105 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
     return summaries
 
 
+def consolidate_ongoing_events():
+    """같은 행사가 여러 날 걸쳐 있을 때, 날짜별 캡처 품질 차이를 보완.
+    동일 브랜드+start 날짜 기준으로 모든 날짜의 혜택 줄을 통합해
+    가장 완전한 요약본으로 전체 날짜를 일괄 업데이트한다.
+    """
+    from collections import defaultdict, OrderedDict
+
+    # 1. 전체 날짜의 summary.json 로드
+    all_summaries = {}  # {date: {brand: {...}}}
+    for d in sorted(glob.glob(os.path.join(ARCHIVE_DIR, '????-??-??'))):
+        date_key = os.path.basename(d)
+        path = os.path.join(d, 'summary.json')
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding='utf-8') as f:
+                all_summaries[date_key] = json.load(f)
+        except Exception:
+            continue
+
+    if not all_summaries:
+        return
+
+    # 2. 브랜드별로 (name, start) 그룹화
+    # event_key → [(date, body, period), ...]
+    event_groups = defaultdict(list)
+    for date, summaries in all_summaries.items():
+        for brand, s in summaries.items():
+            if not isinstance(s, dict):
+                continue
+            name = s.get('name', '').strip()
+            start = s.get('start', '').strip()
+            body = s.get('body', '').strip()
+            if not name or name in ('해당없음', '요약 생성 실패'):
+                continue
+            event_groups[(brand, name, start)].append((date, body, s.get('period', '')))
+
+    # 3. 2일 이상 이어지는 행사만 통합
+    updated = 0
+    for (brand, name, start), entries in event_groups.items():
+        if len(entries) < 2:
+            continue
+
+        # 모든 날짜의 혜택 줄 수집 → 혜택종류별 unique detail
+        benefit_map = OrderedDict()
+        for _, body, _ in entries:
+            for line in body.split('\n'):
+                t = line.strip()
+                if not t or t == '혜택:':
+                    continue
+                if ':' in t:
+                    btype, _, detail = t.partition(':')
+                    btype = btype.strip()
+                    detail = detail.strip()
+                    if btype and detail:
+                        if btype not in benefit_map:
+                            benefit_map[btype] = []
+                        if detail not in benefit_map[btype]:
+                            benefit_map[btype].append(detail)
+
+        if not benefit_map:
+            continue
+
+        # 통합 body 생성 (혜택종류별 첫 번째 또는 가장 많이 등장한 detail 우선)
+        lines = ['혜택:']
+        for btype, details in benefit_map.items():
+            # 가장 정보가 많은 (긴) detail을 대표로
+            best = max(details, key=len)
+            lines.append(f'  {btype}: {best}')
+        consolidated_body = '\n'.join(lines)
+
+        # 가장 긴 period 선택
+        best_period = max((p for _, _, p in entries if p), key=len, default='')
+
+        # 4. 해당 행사 모든 날짜 업데이트
+        changed_dates = []
+        for date, body, period in entries:
+            if body == consolidated_body:
+                continue
+            path = os.path.join(ARCHIVE_DIR, date, 'summary.json')
+            try:
+                with open(path, encoding='utf-8') as f:
+                    s = json.load(f)
+                s[brand]['body'] = consolidated_body
+                if best_period:
+                    s[brand]['period'] = best_period
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(s, f, ensure_ascii=False, indent=2)
+                changed_dates.append(date)
+                updated += 1
+            except Exception as e:
+                print(f'  consolidate 실패 {date}/{brand}: {e}')
+
+        if changed_dates:
+            print(f'  [{brand}] {name} ({start}~) → {len(changed_dates)}일 통합 업데이트')
+
+    print(f'consolidate 완료: {updated}건 업데이트')
+
+
 def _normalize_date(s):
     """날짜 문자열을 M/DD 형식으로 정규화
     입력 예: '05-12', '5.12', '5/12', '2026-05-12' → '5/12'
@@ -1191,6 +1290,12 @@ if __name__ == '__main__':
         generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab)
     except Exception as e:
         print(f'요약 실패: {e}')
+
+    print('진행 중 행사 요약 통합 중...')
+    try:
+        consolidate_ongoing_events()
+    except Exception as e:
+        print(f'consolidate 실패: {e}')
 
     try:
         archive_dates = get_archive_dates()

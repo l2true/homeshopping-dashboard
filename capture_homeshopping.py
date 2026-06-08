@@ -462,8 +462,9 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
         if not os.path.exists(img_path):
             summaries[brand] = {'period': '', 'name': '', 'body': '이미지 없음'}
             continue
+        capture_date_str = os.path.basename(archive_date_dir)  # YYYY-MM-DD
         prompt = (
-            f'{label} 홈쇼핑 모바일 캡처본입니다. '
+            f'{label} 홈쇼핑 모바일 캡처본입니다. 캡처 날짜: {capture_date_str}\n'
             '텍스트 원문을 우선 참고하되, 텍스트에 없더라도 이미지에서 명확히 보이는 혜택(사은품, 쿠폰, 적립 등)은 반드시 함께 추출하세요.\n\n'
             + (extra + '\n\n' if extra else '') +
             '규칙:\n'
@@ -486,6 +487,9 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '카드사는 매일 바뀌므로 "카드 7% 즉시할인", "카드 5% 청구할인" 형식으로만 작성하세요.\n'
             '혜택이 여러 개면 줄을 나눠 작성하되, 같은 혜택종류는 반드시 하나로 묶어 작성하세요.\n'
             '예) 특가가 여러 브랜드에 걸쳐 있으면: "특가: 최대 85% 할인 (나인식스뉴욕·아디다스·MLB 등)"\n'
+            '긴 기간 행사에서 날짜별 세부 일정이 보이면(예: 적립 캘린더, 일별 카테고리 등) '
+            f'캡처 날짜({capture_date_str})에 해당하는 혜택을 우선 추출하세요. '
+            '예) "6.1-6.2 리빙, 6.3-6.4 식품" 형식이면 해당 날짜의 카테고리만 기재.\n'
             '브랜드를 개별 나열하지 말고 최대 혜택값과 대표 브랜드 2~3개만 표기하세요. 혜택 줄 수는 최대 5줄.'
         )
         text_path   = img_path.replace('_next_tab_full.png', '_page_text.txt')

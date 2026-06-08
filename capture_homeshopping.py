@@ -575,10 +575,22 @@ def consolidate_ongoing_events():
             event_groups[(brand, norm)].append((date, body, s.get('period', ''), start, name))
 
     # 3. 2일 이상 이어지는 행사만 통합
+    # 단, 날짜별로 혜택이 의도적으로 다른 행사(적립 카테고리가 매일 다른 경우 등)는 제외
     updated = 0
     for (brand, norm), entries in event_groups.items():
         if len(entries) < 2:
             continue
+        # 동일 혜택종류에 3가지 이상 서로 다른 내용이 있으면 날짜별 의도 변화 → skip
+        from collections import defaultdict as _dd
+        type_details = _dd(set)
+        for _, body, _, _, _ in entries:
+            for line in body.split('\n'):
+                t = line.strip()
+                if ':' in t and not t.startswith('혜택'):
+                    btype, _, detail = t.partition(':')
+                    type_details[btype.strip()].add(detail.strip())
+        if any(len(v) >= 3 for v in type_details.values()):
+            continue  # 날짜별로 내용이 3가지 이상 다름 → consolidate 안 함
 
         # 가장 많이 등장한 이름 + 가장 이른 start 선택
         from collections import Counter

@@ -140,8 +140,56 @@ def scroll_to_load(page, steps=6, delay_ms=300):
 
 
 def capture_full(page, path):
-    page.screenshot(path=path, full_page=True, timeout=60000, animations='disabled')
+    # document.fonts.ready 오버라이드 → 폰트 로딩 대기로 인한 타임아웃 방지
+    try:
+        page.evaluate("""
+            () => {
+                try {
+                    Object.defineProperty(document.fonts, 'ready', {
+                        get: () => Promise.resolve(document.fonts),
+                        configurable: true
+                    });
+                } catch(e) {}
+            }
+        """)
+    except Exception:
+        pass
+    try:
+        page.screenshot(path=path, full_page=True, timeout=60000, animations='disabled')
+    except Exception:
+        # fallback: 실제 콘텐츠 높이만큼 뷰포트 조정 후 캡처
+        total_h = page.evaluate("""
+            () => Math.max(
+                document.body.scrollHeight,
+                document.documentElement.scrollHeight
+            )
+        """) or 6000
+        page.set_viewport_size({'width': VIEWPORT['width'], 'height': min(int(total_h), 15000)})
+        page.wait_for_timeout(300)
+        page.screenshot(path=path, full_page=False, timeout=30000, animations='disabled')
+        page.set_viewport_size(VIEWPORT)
+    # 하단 흰 여백 제거 (scrollHeight 과대산정으로 인한 빈 공간 크롭)
+    _crop_white_bottom(path)
     return path
+
+
+def _crop_white_bottom(path, threshold=250):
+    """이미지 하단의 흰색 여백을 제거한다."""
+    try:
+        from PIL import Image
+        import numpy as np
+        img = Image.open(path).convert('RGB')
+        arr = np.array(img)
+        # 각 행의 최솟값이 threshold 이상이면 흰색 행으로 판단
+        row_min = arr.min(axis=(1, 2))
+        non_white = np.where(row_min < threshold)[0]
+        if len(non_white) == 0:
+            return
+        last_row = int(non_white[-1]) + 1
+        if last_row < img.height:
+            img.crop((0, 0, img.width, last_row)).save(path)
+    except Exception:
+        pass
 
 
 def capture_banner(page, path, height=600):
@@ -223,19 +271,50 @@ def _run_with_retry(func, browser, archive_dir, retries=1):
 def run_gs(browser, archive_dir):
     """GS SHOP 캡처"""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
+    # 폰트 로딩이 스크린샷을 무한 대기시키는 문제 방지
+    page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
     page.goto('https://m.gsshop.com', wait_until='domcontentloaded', timeout=60000)
     page.wait_for_timeout(3000)
     close_popups_gs(page)
     page.wait_for_timeout(1000)
     close_popups_gs(page)
-    save_tab_names(archive_dir, 'gs', get_all_tabs(page))
-    tab_name = click_next_tab(page)
+    # GS는 nav a 셀렉터 사용 (기존 [class*=tab] 셀렉터와 다름)
+    tab_name = page.evaluate("""
+        () => {
+            const nav = document.querySelector('#main_tab_list, nav[id*=tab], nav');
+            if (!nav) return null;
+            const tabs = Array.from(nav.querySelectorAll('a'));
+            // class="home" 우선, 없으면 텍스트로 fallback
+            const homeIdx = tabs.findIndex(a =>
+                a.classList.contains('home') ||
+                a.innerText.trim().split('\\n')[0].trim() === '홈'
+            );
+            if (homeIdx < 0) return null;
+            const next = tabs[homeIdx + 1];
+            if (!next) return null;
+            next.click();
+            const span = next.querySelector('span');
+            return (span ? span.innerText : next.innerText).trim();
+        }
+    """)
+    save_tab_names(archive_dir, 'gs', [tab_name] if tab_name else [])
     page.wait_for_timeout(3000)
     try:
         page.wait_for_load_state('networkidle', timeout=8000)
     except: pass
     close_popups_gs(page)
-    capture_full(page, os.path.join(archive_dir, 'gs_next_tab_full.png'))
+    scroll_to_load(page)
+    # viewport를 콘텐츠 높이로 확장 후 재렌더링 대기 → 전체 캡처
+    loaded_h = page.evaluate("document.documentElement.scrollHeight") or 6000
+    capped_h = min(int(loaded_h), 8000)
+    page.set_viewport_size({'width': VIEWPORT['width'], 'height': capped_h})
+    page.wait_for_timeout(1500)
+    # 재렌더링 후 추가 콘텐츠 로드 트리거
+    scroll_to_load(page, steps=4, delay_ms=200)
+    page.evaluate("window.scrollTo(0, 0)")
+    page.wait_for_timeout(800)
+    page.screenshot(path=os.path.join(archive_dir, 'gs_next_tab_full.png'),
+                    full_page=False, timeout=30000, animations='disabled')
     capture_banner(page, os.path.join(archive_dir, 'gs_banner.png'))
     save_page_text(page, os.path.join(archive_dir, 'gs_page_text.txt'))
     page.close()
@@ -426,8 +505,6 @@ def is_brand_tab(tab_name):
 HYUNDAI_PROMPT_EXTRA = (
     '현대홈쇼핑은 매일 행사가 있지 않습니다. '
     '진행 중인 행사가 없으면 프로모션명에 "해당없음"이라고 쓰고 혜택 행은 모두 생략하세요. '
-    '탭명이 특정 브랜드나 업체명(예: 한국금거래소, 특정 쇼핑몰 이름 등)인 경우에도 '
-    '프로모션 행사가 아닌 브랜드관으로 판단하여 "해당없음"으로 처리하세요. '
     '카드 할인, 적립, 쿠폰 등 구체적인 혜택이 하나도 없는 단순 방송 홍보(예: 오감쇼, 스페셜방송 등)도 '
     '"해당없음"으로 처리하세요. 혜택 항목을 작성할 수 없으면 반드시 "해당없음"입니다. '
     '페이지 텍스트에 없더라도 이미지에서 보이는 혜택은 반드시 추출하세요. '
@@ -484,8 +561,9 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '혜택종류는 반드시 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서만 선택하세요. 그 외 표현(하루만혜택, 단독, 오늘만 등)은 특가로 통일하세요.\n'
             '혜택상세에는 혜택 내용과 함께 적용 조건(선착순 인원, 최대 금액, 기간 등)을 적어주세요.\n'
             '카드 혜택은 특정 카드사명(삼성카드, KB카드, 현대카드 등)을 절대 기재하지 마세요. '
-            '카드사는 매일 바뀌므로 "카드 7% 즉시할인", "카드 5% 청구할인" 형식으로만 작성하세요.\n'
+            '카드사는 매일 바뀌므로 "카드 7% 할인", "카드 최대 7% 할인" 형식으로만 작성하세요. 즉시할인/청구할인 등 할인 방식은 절대 쓰지 마세요.\n'
             '혜택이 여러 개면 줄을 나눠 작성하되, 같은 혜택종류는 반드시 하나로 묶어 작성하세요.\n'
+            '①②③ 또는 혜택1·2·3처럼 단계별로 나뉜 쿠폰/할인은 절대 여러 줄로 쓰지 말고 "최대 N% (A·B·C% 선택)" 형식으로 한 줄에 작성하세요.\n'
             '예) 특가가 여러 브랜드에 걸쳐 있으면: "특가: 최대 85% 할인 (나인식스뉴욕·아디다스·MLB 등)"\n'
             '긴 기간 행사에서 날짜별 세부 일정이 보이면(예: 적립 캘린더, 일별 카테고리 등) '
             f'캡처 날짜({capture_date_str})에 해당하는 혜택을 우선 추출하세요. '

@@ -2,21 +2,21 @@
   "hyundai": {
     "period": "",
     "name": "",
-    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHQcogKMkxtpeatj8wQx\"}"
+    "body": "요약 생성 실패"
   },
   "gs": {
     "period": "",
     "name": "",
-    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHQdfxzZbQEsam8xBcWF\"}"
+    "body": "요약 생성 실패"
   },
   "cj": {
     "period": "",
     "name": "",
-    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHQe9irNtJbANgAMmdBv\"}"
+    "body": "요약 생성 실패"
   },
   "lotte": {
     "period": "",
     "name": "",
-    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHQefz1yXigQFDrrsAfU\"}"
+    "body": "요약 생성 실패"
   }
 }

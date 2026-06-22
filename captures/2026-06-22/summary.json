@@ -2,21 +2,21 @@
   "hyundai": {
     "period": "",
     "name": "",
-    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHPy6zJnfk1vaQeoTdvS\"}"
+    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHQcogKMkxtpeatj8wQx\"}"
   },
   "gs": {
     "period": "",
     "name": "",
-    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHPz7FTae9wckuuuGj8T\"}"
+    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHQdfxzZbQEsam8xBcWF\"}"
   },
   "cj": {
     "period": "",
     "name": "",
-    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHPzemHNbAY6gE67YbbF\"}"
+    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHQe9irNtJbANgAMmdBv\"}"
   },
   "lotte": {
     "period": "",
     "name": "",
-    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHQ1MefpH9S3LYgBs8fj\"}"
+    "body": "Failed to authenticate. API Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid authentication credentials\"},\"request_id\":\"req_011CcHQefz1yXigQFDrrsAfU\"}"
   }
 }

@@ -423,7 +423,7 @@ def _ask_claude(img_path, prompt, text_path=None, banner_path=None):
     proc = subprocess.run(
         ['claude', '-p', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'],
         input=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
-        capture_output=True, env=env, timeout=90,
+        capture_output=True, env=env, timeout=300,
     )
     for line in proc.stdout.decode('utf-8', errors='replace').splitlines():
         try:

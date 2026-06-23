@@ -1171,9 +1171,9 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     const hasNext = allDates.some(d => d > `${{ym}}-32`);
     const DOW = ['월','화','수','목','금','토','일'];
     let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <button onclick="navCalMonth(-1)" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 8px;opacity:${{hasPrev?1:0.25}};pointer-events:${{hasPrev?'auto':'none'}}">◀</button>
+      <button onclick="event.stopPropagation();navCalMonth(-1)" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 8px;opacity:${{hasPrev?1:0.25}};pointer-events:${{hasPrev?'auto':'none'}}">◀</button>
       <span style="font-size:13px;font-weight:700;color:#1a1a2e">${{year}}년 ${{month}}월</span>
-      <button onclick="navCalMonth(1)"  style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 8px;opacity:${{hasNext?1:0.25}};pointer-events:${{hasNext?'auto':'none'}}">▶</button>
+      <button onclick="event.stopPropagation();navCalMonth(1)"  style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 8px;opacity:${{hasNext?1:0.25}};pointer-events:${{hasNext?'auto':'none'}}">▶</button>
     </div>`;
     html += '<table style="width:100%;border-collapse:separate;border-spacing:3px">';
     html += '<tr>' + DOW.map(h => `<th style="text-align:center;font-size:10px;color:#aaa;padding:2px 0;font-weight:600">${{h}}</th>`).join('') + '</tr>';

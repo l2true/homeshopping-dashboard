@@ -656,10 +656,27 @@ def consolidate_ongoing_events():
             norm = _norm_name(name)
             event_groups[(brand, norm)].append((date, body, s.get('period', ''), start, name))
 
+    # 2-1. 연속성 가드: 같은 행사명이라도 캡처 날짜가 MAX_GAP_DAYS 초과로 끊기면 별개 행사로 분리.
+    # (푸드페스타·매직딜데이처럼 주기적으로 반복되는 행사가 과거 것과 엉겨붙는 것을 방지)
+    from datetime import datetime as _dtm
+    MAX_GAP_DAYS = 3
+    run_groups = defaultdict(list)
+    for (brand, norm), ents in event_groups.items():
+        ents.sort(key=lambda e: e[0])  # 날짜순
+        run_idx = 0
+        prev_d = None
+        for e in ents:
+            d = _dtm.strptime(e[0], '%Y-%m-%d')
+            if prev_d is not None and (d - prev_d).days > MAX_GAP_DAYS:
+                run_idx += 1  # 간격이 벌어지면 새 행사 구간
+            run_groups[(brand, norm, run_idx)].append(e)
+            prev_d = d
+    event_groups = run_groups
+
     # 3. 2일 이상 이어지는 행사만 통합
     # 단, 날짜별로 혜택이 의도적으로 다른 행사(적립 카테고리가 매일 다른 경우 등)는 제외
     updated = 0
-    for (brand, norm), entries in event_groups.items():
+    for (brand, norm, _run), entries in event_groups.items():
         if len(entries) < 2:
             continue
         # 동일 혜택종류에 3가지 이상 서로 다른 내용이 있으면 날짜별 의도 변화 → skip

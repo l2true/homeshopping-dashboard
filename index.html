@@ -11,6 +11,10 @@
     header h1 { font-size: 20px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.5px; line-height: 1.2; }
     .header-sub { font-size: 10px; color: #bbb; font-weight: 500; letter-spacing: 2px; margin-top: 3px; }
     .header-right { display: flex; align-items: center; gap: 14px; }
+    .top-nav { display: flex; gap: 8px; }
+    .top-nav a { font-size: 13px; font-weight: 700; color: #888; text-decoration: none; padding: 7px 16px; border-radius: 20px; transition: all 0.15s; }
+    .top-nav a:hover { background: #f0f4ff; color: #1a1a2e; }
+    .top-nav a.active { background: #1a1a2e; color: white; }
     .header-date { font-size: 13px; color: #666; }
     .live-dot { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; }
     .live-dot::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 2px #bbf7d0; display: block; }
@@ -62,6 +66,10 @@
     <h1>홈쇼핑 행사 요약</h1>
     <div class="header-sub">HOMESHOPPING WEEKLY</div>
   </div>
+  <nav class="top-nav">
+    <a href="index.html" class="active">행사 요약</a>
+    <a href="schedule.html">편성표</a>
+  </nav>
   <div class="header-right">
     <span class="header-date" id="header-date">기준일: 2026-06-26</span>
     <span class="live-dot">자동수집</span>

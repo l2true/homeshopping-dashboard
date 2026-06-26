@@ -835,6 +835,146 @@ def _s(brand_data, key, fallback=''):
     return brand_data.get(key, fallback)
 
 
+SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>홈쇼핑 프로모션 편성표</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f6f9; color: #222; }
+    header { background: white; color: #1a1a2e; padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 #ebebf0; }
+    header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; }
+    .header-sub { font-size: 10px; color: #bbb; font-weight: 500; letter-spacing: 2px; margin-top: 3px; }
+    .top-nav { display: flex; gap: 8px; }
+    .top-nav a { font-size: 13px; font-weight: 700; color: #888; text-decoration: none; padding: 7px 16px; border-radius: 20px; transition: all 0.15s; }
+    .top-nav a:hover { background: #f0f4ff; color: #1a1a2e; }
+    .top-nav a.active { background: #1a1a2e; color: white; }
+    .header-right { font-size: 11px; color: #888; }
+    .header-bar { height: 3px; background: linear-gradient(to right, #1565c0 25%, #7b1fa2 25% 50%, #c62828 50% 75%, #e65100 75%); position: sticky; top: 57px; z-index: 99; }
+    .sched-wrap { padding: 20px; }
+    .week-nav { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 18px; }
+    .week-nav button { background: white; border: 1px solid #e0e4ff; color: #444; font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+    .week-nav button:hover { background: #f0f4ff; }
+    .week-nav #week-label { font-size: 16px; font-weight: 800; color: #1a1a2e; min-width: 150px; text-align: center; letter-spacing: 0.3px; }
+    .grid { width: 100%; border-collapse: separate; border-spacing: 6px; table-layout: fixed; }
+    .grid th { padding: 8px 4px; font-size: 12px; color: #888; font-weight: 700; }
+    .grid th.ch-head { width: 92px; }
+    .grid th.today { color: #c62828; }
+    .grid th .d-date { font-size: 14px; font-weight: 800; color: #333; }
+    .grid th.today .d-date { color: #c62828; }
+    .grid th .d-dow { font-size: 11px; margin-top: 2px; }
+    .ch-cell { width: 92px; color: white; font-size: 12px; font-weight: 800; text-align: center; border-radius: 10px; padding: 8px 4px; vertical-align: middle; }
+    .day-cell { background: white; border-radius: 10px; padding: 9px 8px; vertical-align: top; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 1px; }
+    .day-cell.today { background: #fff8f6; box-shadow: 0 0 0 2px #fbcfc4; }
+    .cell-name { font-size: 12.5px; font-weight: 800; color: #1a1a2e; line-height: 1.3; margin-bottom: 5px; }
+    .cell-period { font-size: 10px; color: #fff; background: #ff6b35; display: inline-block; padding: 1px 7px; border-radius: 10px; margin-bottom: 6px; }
+    .bf { font-size: 11px; line-height: 1.45; color: #555; margin-bottom: 2px; }
+    .bf .bt { font-weight: 700; margin-right: 4px; }
+    .no-ev { font-size: 11px; color: #bbb; }
+    @media (max-width: 760px) { .sched-wrap { padding: 10px; } .grid { border-spacing: 3px; } .bf { font-size: 10px; } }
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>홈쇼핑 프로모션 편성표</h1>
+    <div class="header-sub">PROMOTION CALENDAR</div>
+  </div>
+  <nav class="top-nav">
+    <a href="index.html">행사 요약</a>
+    <a href="schedule.html" class="active">편성표</a>
+  </nav>
+  <div class="header-right">자동수집</div>
+</header>
+<div class="header-bar"></div>
+<div class="sched-wrap">
+  <div class="week-nav">
+    <button onclick="navWeek(-1)">◀ 지난주</button>
+    <span id="week-label"></span>
+    <button onclick="navWeek(1)">다음주 ▶</button>
+    <button onclick="goToday()">오늘</button>
+  </div>
+  <div id="grid"></div>
+</div>
+<script>
+  const summaries = __SUMMARIES__;
+  const TODAY = "__TODAY__";
+  const channels = [
+    {key:'gs',      label:'GS SHOP',   color:'#1565c0'},
+    {key:'cj',      label:'CJ온스타일', color:'#7b1fa2'},
+    {key:'lotte',   label:'롯데홈쇼핑', color:'#c62828'},
+    {key:'hyundai', label:'현대홈쇼핑', color:'#e65100'},
+  ];
+  const DOW = ['일','월','화','수','목','금','토'];
+  const TYPE_COLORS = {'카드':'#1d4ed8','적립':'#059669','쿠폰':'#db2777','할인':'#c2410c','특가':'#854d0e','경품':'#6d28d9','사은품':'#15803d'};
+  const toStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const parse = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
+  const mmdd = s => s.slice(5).replace('-','/');
+  function mondayOf(s){ const d=parse(s); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return d; }
+  let _weekMon;
+  function init(){
+    const dates = Object.keys(summaries).sort();
+    const latest = dates.length ? dates[dates.length-1] : TODAY;
+    _weekMon = mondayOf(latest);
+    render();
+  }
+  function navWeek(dir){ _weekMon.setDate(_weekMon.getDate()+dir*7); render(); }
+  function goToday(){ _weekMon = mondayOf(TODAY); render(); }
+  function cellHtml(date, ch){
+    const s = (summaries[date]||{})[ch.key];
+    if(!s || !s.name) return '';
+    if(s.name === '해당없음') return '<div class="no-ev">행사 없음</div>';
+    let benefits = '';
+    (s.body||'').split('\n').forEach(line => {
+      line = line.trim();
+      if(!line || line === '혜택:') return;
+      const i = line.indexOf(':');
+      if(i < 0) return;
+      const t = line.slice(0,i).trim(), d = line.slice(i+1).trim();
+      const c = TYPE_COLORS[t] || '#666';
+      benefits += `<div class="bf"><span class="bt" style="color:${c}">${t}</span>${d}</div>`;
+    });
+    const period = s.period ? `<div class="cell-period">${s.period}</div>` : '';
+    return `<div class="cell-name">${s.name}</div>${period}${benefits}`;
+  }
+  function render(){
+    const days = [];
+    for(let i=0;i<7;i++){ const d=new Date(_weekMon); d.setDate(d.getDate()+i); days.push(toStr(d)); }
+    document.getElementById('week-label').textContent = `${mmdd(days[0])} ~ ${mmdd(days[6])}`;
+    let html = '<table class="grid"><thead><tr><th class="ch-head"></th>';
+    days.forEach(d => {
+      const dow = DOW[parse(d).getDay()];
+      html += `<th class="${d===TODAY?'today':''}"><div class="d-date">${mmdd(d)}</div><div class="d-dow">${dow}</div></th>`;
+    });
+    html += '</tr></thead><tbody>';
+    channels.forEach(ch => {
+      html += `<tr><td class="ch-cell" style="background:${ch.color}">${ch.label}</td>`;
+      days.forEach(d => {
+        html += `<td class="day-cell ${d===TODAY?'today':''}">${cellHtml(d,ch)}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('grid').innerHTML = html;
+  }
+  init();
+</script>
+</body>
+</html>'''
+
+
+def build_schedule_html(all_summaries):
+    """기존 프로모션 요약 데이터를 주간 그리드(채널×날짜) 편성표로 렌더링."""
+    html = (SCHEDULE_TEMPLATE
+            .replace('__SUMMARIES__', json.dumps(all_summaries, ensure_ascii=False))
+            .replace('__TODAY__', TODAY_KEY))
+    with open(os.path.join(BASE_DIR, 'schedule.html'), 'w', encoding='utf-8') as f:
+        f.write(html)
+    print('편성표(schedule.html) 생성 완료')
+
+
 def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     all_summaries = {}
     for d in archive_dates:
@@ -893,6 +1033,10 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     header h1 {{ font-size: 20px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.5px; line-height: 1.2; }}
     .header-sub {{ font-size: 10px; color: #bbb; font-weight: 500; letter-spacing: 2px; margin-top: 3px; }}
     .header-right {{ display: flex; align-items: center; gap: 14px; }}
+    .top-nav {{ display: flex; gap: 8px; }}
+    .top-nav a {{ font-size: 13px; font-weight: 700; color: #888; text-decoration: none; padding: 7px 16px; border-radius: 20px; transition: all 0.15s; }}
+    .top-nav a:hover {{ background: #f0f4ff; color: #1a1a2e; }}
+    .top-nav a.active {{ background: #1a1a2e; color: white; }}
     .header-date {{ font-size: 13px; color: #666; }}
     .live-dot {{ display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; }}
     .live-dot::before {{ content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 2px #bbf7d0; display: block; }}
@@ -944,6 +1088,10 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     <h1>홈쇼핑 행사 요약</h1>
     <div class="header-sub">HOMESHOPPING WEEKLY</div>
   </div>
+  <nav class="top-nav">
+    <a href="index.html" class="active">행사 요약</a>
+    <a href="schedule.html">편성표</a>
+  </nav>
   <div class="header-right">
     <span class="header-date" id="header-date">기준일: {TODAY_KEY}</span>
     <span class="live-dot">자동수집</span>
@@ -1343,13 +1491,15 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
         f.write(html)
     print(f'HTML 업데이트 완료: {TODAY}')
 
+    build_schedule_html(all_summaries)
+
 
 def git_push(archive_date_dir):
     """캡처 결과를 GitHub에 자동 push"""
     import subprocess
     rel = os.path.relpath(archive_date_dir, BASE_DIR).replace('\\', '/')
     candidates = [
-        'index.html', 'promo_history.json',
+        'index.html', 'schedule.html', 'promo_history.json',
         f'{rel}/hyundai_next_tab_full.png', f'{rel}/hyundai_banner.png', f'{rel}/hyundai_page_text.txt',
         f'{rel}/gs_next_tab_full.png',      f'{rel}/gs_banner.png',      f'{rel}/gs_page_text.txt',
         f'{rel}/cj_next_tab_full.png',      f'{rel}/cj_banner.png',      f'{rel}/cj_page_text.txt',

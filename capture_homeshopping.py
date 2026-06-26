@@ -854,26 +854,47 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     .header-right { font-size: 11px; color: #888; }
     .header-bar { height: 3px; background: linear-gradient(to right, #1565c0 25%, #7b1fa2 25% 50%, #c62828 50% 75%, #e65100 75%); position: sticky; top: 57px; z-index: 99; }
     .sched-wrap { padding: 20px; }
-    .week-nav { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 18px; }
-    .week-nav button { background: white; border: 1px solid #e0e4ff; color: #444; font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+    .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .filters .flabel { font-size: 12px; font-weight: 700; color: #999; margin-right: 4px; }
+    .fchip { font-size: 12px; font-weight: 700; color: #666; background: white; border: 1px solid #e0e4ff; padding: 7px 14px; border-radius: 20px; cursor: pointer; transition: all 0.15s; }
+    .fchip:hover { background: #f0f4ff; }
+    .fchip.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+    .week-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 18px; position: relative; }
+    .week-nav button { background: white; border: 1px solid #e0e4ff; color: #444; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s; }
     .week-nav button:hover { background: #f0f4ff; }
-    .week-nav #week-label { font-size: 16px; font-weight: 800; color: #1a1a2e; min-width: 150px; text-align: center; letter-spacing: 0.3px; }
-    .grid { width: 100%; border-collapse: separate; border-spacing: 6px; table-layout: fixed; }
-    .grid th { padding: 8px 4px; font-size: 12px; color: #888; font-weight: 700; }
-    .grid th.ch-head { width: 92px; }
-    .grid th.today { color: #c62828; }
-    .grid th .d-date { font-size: 14px; font-weight: 800; color: #333; }
-    .grid th.today .d-date { color: #c62828; }
-    .grid th .d-dow { font-size: 11px; margin-top: 2px; }
-    .ch-cell { width: 92px; color: white; font-size: 12px; font-weight: 800; text-align: center; border-radius: 10px; padding: 8px 4px; vertical-align: middle; }
-    .day-cell { background: white; border-radius: 10px; padding: 9px 8px; vertical-align: top; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 1px; }
-    .day-cell.today { background: #fff8f6; box-shadow: 0 0 0 2px #fbcfc4; }
-    .cell-name { font-size: 12.5px; font-weight: 800; color: #1a1a2e; line-height: 1.3; margin-bottom: 5px; }
-    .cell-period { font-size: 10px; color: #fff; background: #ff6b35; display: inline-block; padding: 1px 7px; border-radius: 10px; margin-bottom: 6px; }
-    .bf { font-size: 11px; line-height: 1.45; color: #555; margin-bottom: 2px; }
-    .bf .bt { font-weight: 700; margin-right: 4px; }
-    .no-ev { font-size: 11px; color: #bbb; }
-    @media (max-width: 760px) { .sched-wrap { padding: 10px; } .grid { border-spacing: 3px; } .bf { font-size: 10px; } }
+    .week-nav #week-label { font-size: 16px; font-weight: 800; color: #1a1a2e; min-width: 150px; text-align: center; letter-spacing: 0.3px; cursor: pointer; background: white; border: 1px solid #e0e4ff; border-radius: 8px; padding: 8px 18px; }
+    .week-nav #week-label:hover { background: #f0f4ff; }
+    .cal-pop { display: none; position: absolute; top: 46px; left: 50%; transform: translateX(-50%); z-index: 200; background: white; border: 1px solid #e0e4ff; border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 280px; }
+    .cal-pop.open { display: block; }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .cal-head button { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 10px; color: #555; }
+    .cal-head span { font-size: 13px; font-weight: 700; }
+    .cal-table { width: 100%; border-collapse: separate; border-spacing: 2px; }
+    .cal-table th { font-size: 10px; color: #aaa; font-weight: 600; padding: 2px 0; }
+    .cal-table td { text-align: center; padding: 6px 2px; border-radius: 7px; font-size: 13px; cursor: pointer; }
+    .cal-table td.has { color: #333; font-weight: 600; }
+    .cal-table td.no { color: #ccc; }
+    .cal-table td.inweek { background: #eef2ff; }
+    .cal-table td.today { outline: 2px solid #c62828; }
+    .cal-table td:hover { background: #1a1a2e; color: white; }
+    .gantt { background: white; border-radius: 14px; padding: 6px 10px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); overflow-x: auto; }
+    .g-row { display: flex; align-items: stretch; }
+    .ch-label { width: 92px; min-width: 92px; color: white; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; border-radius: 9px; margin: 4px 8px 4px 0; }
+    .ch-label.head { background: transparent; }
+    .g-head .track { display: flex; height: 44px; }
+    .g-head .dcol { flex: 1; text-align: center; border-left: 1px solid #f0f0f2; display: flex; flex-direction: column; justify-content: center; }
+    .g-head .dcol.today .d-date { color: #c62828; }
+    .g-head .dcol .d-date { font-size: 13px; font-weight: 800; color: #444; }
+    .g-head .dcol .d-dow { font-size: 10px; color: #aaa; margin-top: 2px; }
+    .track { position: relative; flex: 1; min-width: 420px; }
+    .gline { position: absolute; top: 0; bottom: 0; width: 1px; background: #f0f0f2; }
+    .gline.today { background: #fbcfc4; width: 2px; }
+    .bar { position: absolute; height: 26px; border-radius: 7px; color: white; font-size: 11.5px; font-weight: 700; line-height: 26px; padding: 0 9px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 4px rgba(0,0,0,0.18); cursor: default; transition: opacity 0.15s; }
+    .bar.cl { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .bar.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    .bar.dim { opacity: 0.13; }
+    .empty-row { font-size: 11px; color: #ccc; line-height: 34px; padding-left: 10px; }
+    @media (max-width: 760px) { .sched-wrap { padding: 10px; } .ch-label { width: 64px; min-width: 64px; font-size: 11px; } }
   </style>
 </head>
 <body>
@@ -890,17 +911,22 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
 </header>
 <div class="header-bar"></div>
 <div class="sched-wrap">
+  <div class="filters" id="filters">
+    <span class="flabel">혜택 필터</span>
+  </div>
   <div class="week-nav">
     <button onclick="navWeek(-1)">◀ 지난주</button>
-    <span id="week-label"></span>
+    <span id="week-label" onclick="toggleCal(event)"></span>
     <button onclick="navWeek(1)">다음주 ▶</button>
     <button onclick="goToday()">오늘</button>
+    <div class="cal-pop" id="cal-pop"></div>
   </div>
-  <div id="grid"></div>
+  <div class="gantt" id="grid"></div>
 </div>
 <script>
   const summaries = __SUMMARIES__;
   const TODAY = "__TODAY__";
+  const DAY = 86400000;
   const channels = [
     {key:'gs',      label:'GS SHOP',   color:'#1565c0'},
     {key:'cj',      label:'CJ온스타일', color:'#7b1fa2'},
@@ -908,61 +934,191 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     {key:'hyundai', label:'현대홈쇼핑', color:'#e65100'},
   ];
   const DOW = ['일','월','화','수','목','금','토'];
+  const TYPES = ['카드','적립','쿠폰','할인','특가','경품','사은품'];
   const TYPE_COLORS = {'카드':'#1d4ed8','적립':'#059669','쿠폰':'#db2777','할인':'#c2410c','특가':'#854d0e','경품':'#6d28d9','사은품':'#15803d'};
   const toStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const parse = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
-  const mmdd = s => s.slice(5).replace('-','/');
-  function mondayOf(s){ const d=parse(s); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return d; }
-  let _weekMon;
-  function init(){
+  function mondayOf(s){ const d=(typeof s==='string')?parse(s):new Date(s); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); d.setHours(0,0,0,0); return d; }
+
+  // 기간(period) 텍스트에서 종료일 추출
+  function periodEnd(period, startISO){
+    if(!period) return null;
+    const mds = period.match(/\d{1,2}\/\d{1,2}/g);
+    if(!mds) return null;
+    const [mo,da] = mds[mds.length-1].split('/').map(Number);
+    const sd = parse(startISO);
+    let end = new Date(sd.getFullYear(), mo-1, da);
+    if(end < sd) end = new Date(sd.getFullYear()+1, mo-1, da);
+    return end;
+  }
+
+  // summaries → 채널별 이벤트 목록 (간트 막대 단위)
+  const events = {gs:[], cj:[], lotte:[], hyundai:[]};
+  (function buildEvents(){
     const dates = Object.keys(summaries).sort();
-    const latest = dates.length ? dates[dates.length-1] : TODAY;
-    _weekMon = mondayOf(latest);
+    const byCh = {gs:{}, cj:{}, lotte:{}, hyundai:{}};
+    dates.forEach(date => {
+      const day = summaries[date] || {};
+      channels.forEach(ch => {
+        const s = day[ch.key];
+        if(!s || !s.name || s.name === '해당없음') return;
+        const key = (s.start||date) + '|' + s.name;
+        let ev = byCh[ch.key][key];
+        if(!ev){ ev = {name:s.name, startISO:s.start||date, period:s.period||'', minD:date, maxD:date, types:new Set()}; byCh[ch.key][key]=ev; }
+        if(date < ev.minD) ev.minD = date;
+        if(date > ev.maxD) ev.maxD = date;
+        if(s.period) ev.period = s.period;
+        (s.body||'').split('\n').forEach(l => { l=l.trim(); const i=l.indexOf(':'); if(i>0){ const t=l.slice(0,i).trim(); if(TYPES.includes(t)) ev.types.add(t); } });
+      });
+    });
+    channels.forEach(ch => {
+      events[ch.key] = Object.values(byCh[ch.key]).map(ev => {
+        const start = parse(ev.startISO);
+        const pe = periodEnd(ev.period, ev.startISO);
+        const maxd = parse(ev.maxD);
+        let end = maxd;
+        if(pe && pe > end) end = pe;   // 기간 종료일이 더 늦으면 사용
+        if(end < start) end = start;
+        ev._start = start; ev._end = end;
+        return ev;
+      });
+    });
+  })();
+
+  // 필터
+  let _filter = new Set();
+  function buildFilters(){
+    const box = document.getElementById('filters');
+    const mk = (t, lbl) => `<button class="fchip${t==='ALL'&&_filter.size===0?' active':''}" data-t="${t}" onclick="toggleFilter('${t}')">${lbl}</button>`;
+    box.insertAdjacentHTML('beforeend', mk('ALL','전체') + TYPES.map(t=>mk(t,t)).join(''));
+  }
+  function toggleFilter(t){
+    if(t==='ALL') _filter.clear();
+    else { _filter.has(t) ? _filter.delete(t) : _filter.add(t); }
+    document.querySelectorAll('.fchip').forEach(c => {
+      const ct=c.dataset.t;
+      c.classList.toggle('active', ct==='ALL' ? _filter.size===0 : _filter.has(ct));
+    });
     render();
   }
+  function dimmed(ev){
+    if(_filter.size===0) return false;
+    for(const t of _filter) if(ev.types.has(t)) return false;
+    return true;
+  }
+
+  // 주간 캘린더 팝업
+  let _weekMon, _calMonth;
+  function toggleCal(e){
+    if(e) e.stopPropagation();
+    const p = document.getElementById('cal-pop');
+    if(p.classList.contains('open')){ p.classList.remove('open'); return; }
+    _calMonth = toStr(_weekMon).slice(0,7);
+    renderCal();
+    p.classList.add('open');
+  }
+  function navCalMonth(dir, e){
+    if(e) e.stopPropagation();
+    const [y,m] = _calMonth.split('-').map(Number);
+    const nd = new Date(y, m-1+dir, 1);
+    _calMonth = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+    renderCal();
+  }
+  function selectWeek(iso){
+    _weekMon = mondayOf(iso);
+    document.getElementById('cal-pop').classList.remove('open');
+    render();
+  }
+  function renderCal(){
+    const [year,month] = _calMonth.split('-').map(Number);
+    const dim = new Date(year, month, 0).getDate();
+    const firstDow = (new Date(year, month-1, 1).getDay()+6)%7;
+    const weekStart = toStr(_weekMon);
+    const weekEnd = toStr(new Date(_weekMon.getTime()+6*DAY));
+    let h = `<div class="cal-head"><button onclick="navCalMonth(-1,event)">◀</button><span>${year}년 ${month}월</span><button onclick="navCalMonth(1,event)">▶</button></div>`;
+    h += '<table class="cal-table"><tr>' + ['월','화','수','목','금','토','일'].map(d=>`<th>${d}</th>`).join('') + '</tr><tr>';
+    let col = 0;
+    for(let i=0;i<firstDow;i++){ h+='<td></td>'; col++; }
+    for(let day=1; day<=dim; day++){
+      const iso = `${_calMonth}-${String(day).padStart(2,'0')}`;
+      const has = !!summaries[iso];
+      const inweek = iso>=weekStart && iso<=weekEnd;
+      const today = iso===TODAY;
+      const cls = [has?'has':'no', inweek?'inweek':'', today?'today':''].filter(Boolean).join(' ');
+      h += `<td class="${cls}" onclick="selectWeek('${iso}')">${day}</td>`;
+      col++;
+      if(col%7===0 && day<dim) h+='</tr><tr>';
+    }
+    h += '</tr></table>';
+    document.getElementById('cal-pop').innerHTML = h;
+  }
+  document.addEventListener('click', e => {
+    if(!e.target.closest('#cal-pop') && !e.target.closest('#week-label'))
+      document.getElementById('cal-pop')?.classList.remove('open');
+  });
+
   function navWeek(dir){ _weekMon.setDate(_weekMon.getDate()+dir*7); render(); }
   function goToday(){ _weekMon = mondayOf(TODAY); render(); }
-  function cellHtml(date, ch){
-    const s = (summaries[date]||{})[ch.key];
-    if(!s || !s.name) return '';
-    if(s.name === '해당없음') return '<div class="no-ev">행사 없음</div>';
-    let benefits = '';
-    (s.body||'').split('\n').forEach(line => {
-      line = line.trim();
-      if(!line || line === '혜택:') return;
-      const i = line.indexOf(':');
-      if(i < 0) return;
-      const t = line.slice(0,i).trim(), d = line.slice(i+1).trim();
-      const c = TYPE_COLORS[t] || '#666';
-      benefits += `<div class="bf"><span class="bt" style="color:${c}">${t}</span>${d}</div>`;
-    });
-    const period = s.period ? `<div class="cell-period">${s.period}</div>` : '';
-    return `<div class="cell-name">${s.name}</div>${period}${benefits}`;
-  }
+
   function render(){
-    const days = [];
-    for(let i=0;i<7;i++){ const d=new Date(_weekMon); d.setDate(d.getDate()+i); days.push(toStr(d)); }
-    document.getElementById('week-label').textContent = `${mmdd(days[0])} ~ ${mmdd(days[6])}`;
-    let html = '<table class="grid"><thead><tr><th class="ch-head"></th>';
+    const days = [...Array(7)].map((_,i)=>{ const d=new Date(_weekMon); d.setDate(d.getDate()+i); return d; });
+    const wStart = new Date(_weekMon);
+    const wEnd = new Date(_weekMon.getTime()+6*DAY);
+    document.getElementById('week-label').textContent =
+      `${wStart.getMonth()+1}/${wStart.getDate()} ~ ${wEnd.getMonth()+1}/${wEnd.getDate()}`;
+
+    // 헤더
+    let head = '<div class="g-row g-head"><div class="ch-label head"></div><div class="track">';
     days.forEach(d => {
-      const dow = DOW[parse(d).getDay()];
-      html += `<th class="${d===TODAY?'today':''}"><div class="d-date">${mmdd(d)}</div><div class="d-dow">${dow}</div></th>`;
+      const today = toStr(d)===TODAY;
+      head += `<div class="dcol${today?' today':''}"><div class="d-date">${d.getMonth()+1}/${d.getDate()}</div><div class="d-dow">${DOW[d.getDay()]}</div></div>`;
     });
-    html += '</tr></thead><tbody>';
+    head += '</div></div>';
+
+    let rows = '';
     channels.forEach(ch => {
-      html += `<tr><td class="ch-cell" style="background:${ch.color}">${ch.label}</td>`;
-      days.forEach(d => {
-        html += `<td class="day-cell ${d===TODAY?'today':''}">${cellHtml(d,ch)}</td>`;
+      const evs = events[ch.key].filter(ev => ev._end>=wStart && ev._start<=wEnd).sort((a,b)=>a._start-b._start);
+      // 레인 배치 (겹침 방지)
+      const lanes = [];
+      evs.forEach(ev => {
+        let placed = false;
+        for(let li=0; li<lanes.length; li++){
+          if(lanes[li] < ev._start){ ev._lane=li; lanes[li]=ev._end; placed=true; break; }
+        }
+        if(!placed){ ev._lane=lanes.length; lanes.push(ev._end); }
       });
-      html += '</tr>';
+      const laneCount = Math.max(1, lanes.length);
+      const rowH = laneCount*30 + 8;
+      let lines = '';
+      days.forEach((d,i) => { lines += `<div class="gline${toStr(d)===TODAY?' today':''}" style="left:${i/7*100}%"></div>`; });
+      let bars = '';
+      evs.forEach(ev => {
+        const cs = ev._start<wStart ? wStart : ev._start;
+        const ce = ev._end>wEnd ? wEnd : ev._end;
+        const offset = Math.round((cs-wStart)/DAY);
+        const span = Math.round((ce-cs)/DAY)+1;
+        const left = offset/7*100, width = span/7*100;
+        const contL = ev._start<wStart, contR = ev._end>wEnd;
+        const top = ev._lane*30 + 3;
+        const tip = `${ev.name}${ev.period?' | '+ev.period:''}${ev.types.size?' | '+[...ev.types].join(', '):''}`;
+        bars += `<div class="bar${dimmed(ev)?' dim':''}${contL?' cl':''}${contR?' cr':''}" style="left:${left}%;width:${width}%;top:${top}px;background:${ch.color}" title="${tip}">${ev.name}</div>`;
+      });
+      if(evs.length===0) bars = '<div class="empty-row">—</div>';
+      rows += `<div class="g-row"><div class="ch-label" style="background:${ch.color}">${ch.label}</div><div class="track" style="height:${rowH}px">${lines}${bars}</div></div>`;
     });
-    html += '</tbody></table>';
-    document.getElementById('grid').innerHTML = html;
+    document.getElementById('grid').innerHTML = head + rows;
   }
-  init();
+
+  buildFilters();
+  (function init(){
+    const dates = Object.keys(summaries).sort();
+    _weekMon = mondayOf(dates.length ? dates[dates.length-1] : TODAY);
+    render();
+  })();
 </script>
 </body>
-</html>'''
+</html>
+'''
 
 
 def build_schedule_html(all_summaries):

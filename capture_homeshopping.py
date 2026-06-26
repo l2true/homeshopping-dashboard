@@ -952,6 +952,16 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     return end;
   }
 
+  // 행사명 정규화 (공백·문장부호 제거, 소문자화) 및 매칭
+  function nameKey(n){ return (n||'').replace(/\s+/g,'').replace(/[!~·,\/\-_.()]/g,'').toLowerCase(); }
+  function nameMatch(a, b){
+    const x = nameKey(a), y = nameKey(b);
+    if(!x || !y) return false;
+    if(x === y) return true;                       // 표기만 다른 동일명
+    const [s, l] = x.length <= y.length ? [x, y] : [y, x];
+    return s.length >= 4 && l.includes(s);         // 한쪽이 다른 쪽을 포함(4자 이상)
+  }
+
   // summaries → 채널별 이벤트 목록 (간트 막대 단위)
   const events = {gs:[], cj:[], lotte:[], hyundai:[]};
   (function buildEvents(){
@@ -982,25 +992,28 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
         ev._start = start; ev._end = end;
         return ev;
       });
-      // 같은 이름 + 기간이 겹치거나 맞닿으면 하나의 막대로 병합
-      // (패션 클리어런스처럼 중간에 다른 탭이 잡혀 start가 갈라진 동일 캠페인 통합.
-      //  매직딜데이처럼 멀리 떨어진 반복 행사는 겹치지 않으므로 분리 유지)
-      const byName = {};
-      occ.forEach(ev => { (byName[ev.name] = byName[ev.name] || []).push(ev); });
+      // 이름이 같은(표기 흔들림 포함) + 기간이 겹치거나 맞닿는 행사를 하나의 막대로 병합.
+      // (패션 클리어런스처럼 start가 갈라진 동일 캠페인, "상반기 어워즈"="상반기어워즈"(공백),
+      //  "건강한데이"⊂"건강식품 건강한데이"(포함) 등 통합. 멀리 떨어진 반복 행사는 분리 유지)
+      occ.sort((a,b) => a._start - b._start);
       const merged = [];
-      Object.values(byName).forEach(group => {
-        group.sort((a,b) => a._start - b._start);
-        let cur = null;
-        group.forEach(ev => {
-          if(cur && ev._start.getTime() <= cur._end.getTime() + DAY){  // 겹침 또는 1일 이내 인접
-            if(ev._end > cur._end) cur._end = ev._end;
-            ev.types.forEach(t => cur.types.add(t));
-            if(ev.period && !cur.period) cur.period = ev.period;
-          } else {
-            cur = {name:ev.name, period:ev.period, types:new Set(ev.types), _start:ev._start, _end:ev._end};
-            merged.push(cur);
-          }
-        });
+      occ.forEach(ev => {
+        let target = null;
+        for(const c of merged){
+          const overlap = ev._start.getTime() <= c._end.getTime() + DAY &&
+                          ev._end.getTime()   >= c._start.getTime() - DAY;
+          if(overlap && nameMatch(c.name, ev.name)){ target = c; break; }
+        }
+        if(target){
+          if(ev._end > target._end) target._end = ev._end;
+          if(ev._start < target._start) target._start = ev._start;
+          ev.types.forEach(t => target.types.add(t));
+          if(ev.period && !target.period) target.period = ev.period;
+          // 더 짧고 깔끔한 이름을 대표명으로
+          if(nameKey(ev.name).length < nameKey(target.name).length) target.name = ev.name;
+        } else {
+          merged.push({name:ev.name, period:ev.period, types:new Set(ev.types), _start:ev._start, _end:ev._end});
+        }
       });
       events[ch.key] = merged;
     });

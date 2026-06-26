@@ -15,7 +15,7 @@
     .top-nav a:hover { background: #f0f4ff; color: #1a1a2e; }
     .top-nav a.active { background: #1a1a2e; color: white; }
     .header-right { font-size: 11px; color: #888; }
-    .header-bar { height: 3px; background: linear-gradient(to right, #1565c0 25%, #7b1fa2 25% 50%, #c62828 50% 75%, #e65100 75%); position: sticky; top: 57px; z-index: 99; }
+    .header-bar { height: 3px; background: linear-gradient(to right, #9dc3e8 25%, #cdb3e6 25% 50%, #e8a9a9 50% 75%, #efc199 75%); position: sticky; top: 57px; z-index: 99; }
     .sched-wrap { padding: 20px; }
     .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
     .filters .flabel { font-size: 12px; font-weight: 700; color: #999; margin-right: 4px; }
@@ -52,7 +52,7 @@
     .track { position: relative; flex: 1; min-width: 420px; }
     .gline { position: absolute; top: 0; bottom: 0; width: 1px; background: #f0f0f2; }
     .gline.today { background: #fbcfc4; width: 2px; }
-    .bar { position: absolute; height: 26px; border-radius: 7px; color: white; font-size: 11.5px; font-weight: 700; line-height: 26px; padding: 0 9px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 4px rgba(0,0,0,0.18); cursor: default; transition: opacity 0.15s; }
+    .bar { position: absolute; height: 26px; border-radius: 7px; font-size: 11.5px; font-weight: 700; line-height: 24px; padding: 0 9px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: default; transition: opacity 0.15s; }
     .bar.cl { border-top-left-radius: 0; border-bottom-left-radius: 0; }
     .bar.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; }
     .bar.dim { opacity: 0.13; }
@@ -91,10 +91,10 @@
   const TODAY = "2026-06-26";
   const DAY = 86400000;
   const channels = [
-    {key:'gs',      label:'GS SHOP',   color:'#1565c0'},
-    {key:'cj',      label:'CJ온스타일', color:'#7b1fa2'},
-    {key:'lotte',   label:'롯데홈쇼핑', color:'#c62828'},
-    {key:'hyundai', label:'현대홈쇼핑', color:'#e65100'},
+    {key:'gs',      label:'GS SHOP',   color:'#3b82c4', soft:'#e8f1fb'},
+    {key:'cj',      label:'CJ온스타일', color:'#9b6fc0', soft:'#f3ecfb'},
+    {key:'lotte',   label:'롯데홈쇼핑', color:'#d05a5a', soft:'#fbeaea'},
+    {key:'hyundai', label:'현대홈쇼핑', color:'#e08a4a', soft:'#fcefe2'},
   ];
   const DOW = ['일','월','화','수','목','금','토'];
   const TYPES = ['카드','적립','쿠폰','할인','특가','경품','사은품'];
@@ -264,10 +264,10 @@
         const contL = ev._start<wStart, contR = ev._end>wEnd;
         const top = ev._lane*30 + 3;
         const tip = `${ev.name}${ev.period?' | '+ev.period:''}${ev.types.size?' | '+[...ev.types].join(', '):''}`;
-        bars += `<div class="bar${dimmed(ev)?' dim':''}${contL?' cl':''}${contR?' cr':''}" style="left:${left}%;width:${width}%;top:${top}px;background:${ch.color}" title="${tip}">${ev.name}</div>`;
+        bars += `<div class="bar${dimmed(ev)?' dim':''}${contL?' cl':''}${contR?' cr':''}" style="left:${left}%;width:${width}%;top:${top}px;background:${ch.soft};color:${ch.color};border:1px solid ${ch.color}33" title="${tip}">${ev.name}</div>`;
       });
       if(evs.length===0) bars = '<div class="empty-row">—</div>';
-      rows += `<div class="g-row"><div class="ch-label" style="background:${ch.color}">${ch.label}</div><div class="track" style="height:${rowH}px">${lines}${bars}</div></div>`;
+      rows += `<div class="g-row"><div class="ch-label" style="background:${ch.soft};color:${ch.color}">${ch.label}</div><div class="track" style="height:${rowH}px">${lines}${bars}</div></div>`;
     });
     document.getElementById('grid').innerHTML = head + rows;
   }

@@ -149,7 +149,7 @@
   }
 
   // 행사명 정규화 (공백·문장부호 제거, 소문자화) 및 매칭
-  function nameKey(n){ return (n||'').replace(/\s+/g,'').replace(/[!~·,\/\-_.()]/g,'').toLowerCase(); }
+  function nameKey(n){ return (n||'').toLowerCase().replace(/hot/g,'핫').replace(/\s+/g,'').replace(/[!~·,\/\-_.()]/g,''); }
   function nameMatch(a, b){
     const x = nameKey(a), y = nameKey(b);
     if(!x || !y) return false;

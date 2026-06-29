@@ -957,7 +957,24 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     .bar.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; }
     .bar.dim { opacity: 0.13; }
     .empty-row { font-size: 11px; color: #ccc; line-height: 34px; padding-left: 10px; }
-    @media (max-width: 760px) { .sched-wrap { padding: 10px; } .ch-label { width: 64px; min-width: 64px; font-size: 11px; } }
+    /* 행사 카드 모달 */
+    .ev-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; justify-content: center; align-items: flex-start; padding: 40px 16px; overflow-y: auto; }
+    .ev-modal.open { display: flex; }
+    .ev-card { background: white; border-radius: 16px; max-width: 560px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.25); overflow: hidden; }
+    .ev-head { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 10px; }
+    .ev-logo { font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 8px; color: white; white-space: nowrap; }
+    .ev-name { font-size: 17px; font-weight: 800; flex: 1; color: #1a1a2e; }
+    .ev-period { font-size: 12px; color: #fff; background: #ff6b35; padding: 3px 11px; border-radius: 20px; white-space: nowrap; }
+    .ev-close { background: none; border: none; font-size: 24px; color: #999; cursor: pointer; line-height: 1; padding: 0 2px; }
+    .ev-body { display: flex; gap: 0; }
+    .ev-shot { width: 220px; min-width: 220px; border-right: 1px solid #f0f0f0; background: #fafafa; padding: 12px; max-height: 70vh; overflow-y: auto; }
+    .ev-shot img { width: 100%; border-radius: 8px; border: 1px solid #eee; display: block; }
+    .ev-shot .cap { font-size: 11px; color: #999; text-align: center; margin-bottom: 8px; }
+    .ev-benefits { flex: 1; padding: 16px 20px; display: flex; flex-direction: column; gap: 9px; }
+    .ev-bf { font-size: 13px; line-height: 1.5; color: #444; }
+    .ev-bf .bt { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; margin-right: 7px; }
+    @media (max-width: 760px) { .sched-wrap { padding: 10px; } .ch-label { width: 64px; min-width: 64px; font-size: 11px; }
+      .ev-body { flex-direction: column; } .ev-shot { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid #f0f0f0; max-height: 320px; } }
   </style>
 </head>
 <body>
@@ -985,6 +1002,9 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     <div class="cal-pop" id="cal-pop"></div>
   </div>
   <div class="gantt" id="grid"></div>
+</div>
+<div class="ev-modal" id="ev-modal" onclick="if(event.target===this)closeCard()">
+  <div class="ev-card" id="ev-card"></div>
 </div>
 <script>
   const summaries = __SUMMARIES__;
@@ -1078,12 +1098,13 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
         if(target){
           if(ev._end > target._end) target._end = ev._end;
           if(ev._start < target._start) target._start = ev._start;
+          if(ev.minD < target.firstDate) target.firstDate = ev.minD;  // 가장 이른 등장일
           ev.types.forEach(t => target.types.add(t));
           if(ev.period && !target.period) target.period = ev.period;
           // 더 짧고 깔끔한 이름을 대표명으로
           if(nameKey(ev.name).length < nameKey(target.name).length) target.name = ev.name;
         } else {
-          merged.push({name:ev.name, period:ev.period, types:new Set(ev.types), _start:ev._start, _end:ev._end});
+          merged.push({name:ev.name, period:ev.period, types:new Set(ev.types), _start:ev._start, _end:ev._end, ch:ch.key, firstDate:ev.minD});
         }
       });
       events[ch.key] = merged;
@@ -1165,6 +1186,38 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   function navWeek(dir){ _weekMon.setDate(_weekMon.getDate()+dir*7); render(); }
   function goToday(){ _weekMon = mondayOf(TODAY); render(); }
 
+  // 막대 클릭 → 해당 행사 첫날 카드(스크린샷+혜택) 모달
+  function openCard(ch, date){
+    const s = (summaries[date] || {})[ch] || {};
+    const meta = channels.find(c => c.key === ch) || {label:ch, color:'#666'};
+    let benefits = '';
+    (s.body||'').split('\n').forEach(line => {
+      line = line.trim();
+      if(!line || line === '혜택:') return;
+      const i = line.indexOf(':');
+      if(i < 0) return;
+      const t = line.slice(0,i).trim(), d = line.slice(i+1).trim();
+      const c = TYPE_COLORS[t] || '#666';
+      benefits += `<div class="ev-bf"><span class="bt" style="background:${c}22;color:${c}">${t}</span>${d}</div>`;
+    });
+    if(!benefits) benefits = '<div class="ev-bf" style="color:#aaa">표시할 혜택 정보가 없습니다.</div>';
+    const shot = `captures/${date}/${ch}_next_tab_full.png`;
+    document.getElementById('ev-card').innerHTML =
+      `<div class="ev-head">
+         <span class="ev-logo" style="background:${meta.color}">${meta.label}</span>
+         <span class="ev-name">${s.name||''}</span>
+         ${s.period?`<span class="ev-period">${s.period}</span>`:''}
+         <button class="ev-close" onclick="closeCard()">&times;</button>
+       </div>
+       <div class="ev-body">
+         <div class="ev-shot"><div class="cap">모바일 캡처본 (${date})</div><img src="${shot}" alt="캡처본" onerror="this.parentNode.innerHTML='<div class=cap>캡처 이미지 없음</div>'"></div>
+         <div class="ev-benefits">${benefits}</div>
+       </div>`;
+    document.getElementById('ev-modal').classList.add('open');
+  }
+  function closeCard(){ document.getElementById('ev-modal').classList.remove('open'); }
+  document.addEventListener('keydown', e => { if(e.key==='Escape') closeCard(); });
+
   function render(){
     const days = [...Array(7)].map((_,i)=>{ const d=new Date(_weekMon); d.setDate(d.getDate()+i); return d; });
     const wStart = new Date(_weekMon);
@@ -1205,8 +1258,8 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
         const left = offset/7*100, width = span/7*100;
         const contL = ev._start<wStart, contR = ev._end>wEnd;
         const top = ev._lane*30 + 3;
-        const tip = `${ev.name}${ev.period?' | '+ev.period:''}${ev.types.size?' | '+[...ev.types].join(', '):''}`;
-        bars += `<div class="bar${dimmed(ev)?' dim':''}${contL?' cl':''}${contR?' cr':''}" style="left:${left}%;width:${width}%;top:${top}px;background:${ch.soft};color:${ch.color};border:1px solid ${ch.color}33" title="${tip}">${ev.name}</div>`;
+        const tip = `${ev.name}${ev.period?' | '+ev.period:''}${ev.types.size?' | '+[...ev.types].join(', '):''} (클릭 시 첫날 카드)`;
+        bars += `<div class="bar${dimmed(ev)?' dim':''}${contL?' cl':''}${contR?' cr':''}" style="left:${left}%;width:${width}%;top:${top}px;background:${ch.soft};color:${ch.color};border:1px solid ${ch.color}33;cursor:pointer" title="${tip}" onclick="openCard('${ev.ch}','${ev.firstDate}')">${ev.name}</div>`;
       });
       if(evs.length===0) bars = '<div class="empty-row">—</div>';
       rows += `<div class="g-row"><div class="ch-label" style="background:${ch.soft};color:${ch.color}">${ch.label}</div><div class="track" style="height:${rowH}px">${lines}${bars}</div></div>`;

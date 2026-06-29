@@ -616,6 +616,68 @@ def _clean_card_detail(detail: str) -> str:
     return cleaned
 
 
+def validate_periods(gap_days=21):
+    """period 종료일이 그 행사가 실제 등장한 마지막 날보다 gap_days 이상 뒤면
+    날짜 오독(예: 6/24를 8/24로 읽음) 가능성이 높으므로 로그에 경고를 남긴다.
+    자동 수정은 하지 않는다 (실제로 긴 행사일 수 있으므로 사람이 확인)."""
+    from datetime import datetime, timedelta
+    chans = ['hyundai', 'gs', 'cj', 'lotte']
+    appear = {}   # (ch, name) -> [dates]
+    rows = {}     # date -> data
+    for d in sorted(glob.glob(os.path.join(ARCHIVE_DIR, '????-??-??'))):
+        date = os.path.basename(d)
+        p = os.path.join(d, 'summary.json')
+        if not os.path.exists(p):
+            continue
+        try:
+            data = json.load(open(p, encoding='utf-8'))
+        except Exception:
+            continue
+        rows[date] = data
+        for ch in chans:
+            n = (data.get(ch, {}).get('name') or '').strip()
+            if n and n != '해당없음':
+                appear.setdefault((ch, n), []).append(date)
+
+    def period_end(period, refdate):
+        mds = _re_module.findall(r'\d{1,2}/\d{1,2}', period or '')
+        if not mds:
+            return None
+        mo, da = map(int, mds[-1].split('/'))
+        ry = int(refdate[:4])
+        sd = datetime.strptime(refdate, '%Y-%m-%d')
+        end = datetime(ry, mo, da)
+        if end < sd - timedelta(days=180):
+            end = datetime(ry + 1, mo, da)
+        return end
+
+    warned = 0
+    seen = set()
+    for date in sorted(rows):
+        for ch in chans:
+            s = rows[date].get(ch, {})
+            n = (s.get('name') or '').strip()
+            period = (s.get('period') or '').strip()
+            if not n or n == '해당없음' or not period:
+                continue
+            key = (ch, n, period)
+            if key in seen:
+                continue
+            seen.add(key)
+            pe = period_end(period, date)
+            if not pe:
+                continue
+            last = max(appear.get((ch, n), [date]))
+            gap = (pe - datetime.strptime(last, '%Y-%m-%d')).days
+            if gap > gap_days:
+                warned += 1
+                print(f'  [기간검증] (!) [{ch}] {n!r} period={period!r} '
+                      f'종료일={pe.date()} 마지막등장={last} (+{gap}일) -> 날짜 오독 의심')
+    if warned == 0:
+        print('  [기간검증] 이상 없음')
+    return warned
+
+
 def consolidate_ongoing_events():
     """같은 행사가 여러 날 걸쳐 있을 때, 날짜별 캡처 품질 차이를 보완.
     동일 브랜드+start 날짜 기준으로 모든 날짜의 혜택 줄을 통합해
@@ -1813,6 +1875,12 @@ if __name__ == '__main__':
         consolidate_ongoing_events()
     except Exception as e:
         print(f'consolidate 실패: {e}')
+
+    print('기간(period) 날짜 오독 검증 중...')
+    try:
+        validate_periods()
+    except Exception as e:
+        print(f'기간검증 실패: {e}')
 
     try:
         archive_dates = get_archive_dates()

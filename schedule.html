@@ -122,7 +122,15 @@
     if(!x || !y) return false;
     if(x === y) return true;                       // 표기만 다른 동일명
     const [s, l] = x.length <= y.length ? [x, y] : [y, x];
-    return s.length >= 4 && l.includes(s);         // 한쪽이 다른 쪽을 포함(4자 이상)
+    if(s.length >= 4 && l.includes(s)) return true;  // 한쪽이 다른 쪽을 포함(4자 이상)
+    // 접두+접미는 같고 가운데 한두 글자만 삽입된 경우 동일 취급
+    // (예: "상반기어워즈" ⟷ "상반기앱어워즈")
+    if(s.length >= 4 && l.length - s.length <= 2){
+      let p = 0; while(p < s.length && s[p] === l[p]) p++;
+      let q = 0; while(q < s.length - p && s[s.length-1-q] === l[l.length-1-q]) q++;
+      if(p + q >= s.length) return true;
+    }
+    return false;
   }
 
   // summaries → 채널별 이벤트 목록 (간트 막대 단위)

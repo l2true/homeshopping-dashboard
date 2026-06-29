@@ -1062,6 +1062,13 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     return false;
   }
 
+  // 매일 브랜드만 바뀌는 정기 행사는 대표명으로 통일 (브랜드명은 행사명에서 제거)
+  // 예: "씨드비 지금이닷 브랜드", "지금이닷 브랜드 (돌체구스토)" → "지금이닷 브랜드"
+  function canonName(n){
+    if(/지금이닷/.test(n||'')) return '지금이닷 브랜드';
+    return n;
+  }
+
   // summaries → 채널별 이벤트 목록 (간트 막대 단위)
   const events = {gs:[], cj:[], lotte:[], hyundai:[]};
   (function buildEvents(){
@@ -1074,7 +1081,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
         if(!s || !s.name || s.name === '해당없음') return;
         const key = (s.start||date) + '|' + s.name;
         let ev = byCh[ch.key][key];
-        if(!ev){ ev = {name:s.name, startISO:s.start||date, period:s.period||'', minD:date, maxD:date, types:new Set()}; byCh[ch.key][key]=ev; }
+        if(!ev){ ev = {name:canonName(s.name), startISO:s.start||date, period:s.period||'', minD:date, maxD:date, types:new Set()}; byCh[ch.key][key]=ev; }
         if(date < ev.minD) ev.minD = date;
         if(date > ev.maxD) ev.maxD = date;
         if(s.period) ev.period = s.period;
@@ -1195,6 +1202,25 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   function navWeek(dir){ _weekMon.setDate(_weekMon.getDate()+dir*7); render(); }
   function goToday(){ _weekMon = mondayOf(TODAY); render(); }
 
+  // 행사명에서 브랜드만 추출 (지금이닷 브랜드 등 매일 브랜드만 바뀌는 행사용)
+  function brandOf(name){
+    return (name||'').replace(/지금이닷|브랜드/g,'').replace(/[()\-_·]/g,' ').replace(/\s+/g,' ').trim();
+  }
+  // firstDate부터 같은(정규화) 행사가 이어지는 날들 수집
+  function eventDays(ch, firstDate){
+    const canon = canonName(((summaries[firstDate]||{})[ch]||{}).name || '');
+    const dates = Object.keys(summaries).sort().filter(d => d >= firstDate);
+    const out = [];
+    for(const d of dates){
+      if(out.length && (parse(d)-parse(out[out.length-1].date))/DAY > 4) break;  // 너무 벌어지면 종료
+      const s = (summaries[d]||{})[ch];
+      if(!s || !s.name || s.name==='해당없음') continue;
+      if(canonName(s.name) !== canon) continue;   // 중간에 다른 행사가 끼면 건너뜀
+      out.push({date:d, name:s.name, body:s.body||''});
+    }
+    return out;
+  }
+
   // 막대 클릭 → 해당 행사 첫날 카드(스크린샷+혜택) 모달
   function openCard(ch, date){
     const s = (summaries[date] || {})[ch] || {};
@@ -1210,11 +1236,20 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
       benefits += `<div class="ev-bf"><span class="bt" style="background:${c}22;color:${c}">${t}</span>${d}</div>`;
     });
     if(!benefits) benefits = '<div class="ev-bf" style="color:#aaa">표시할 혜택 정보가 없습니다.</div>';
+    // 매일 브랜드만 바뀌는 행사면 일자별 브랜드 목록 추가
+    const days = eventDays(ch, date);
+    const brands = days.map(d => ({d:d.date, b:brandOf(d.name)})).filter(x => x.b);
+    const uniqBrands = [...new Set(brands.map(x => x.b))];
+    if(uniqBrands.length > 1){
+      const rows = brands.map(x => `<div class="ev-bf"><span class="bt" style="background:#1a1a2e15;color:#1a1a2e">${x.d.slice(5).replace('-','/')}</span>${x.b}</div>`).join('');
+      benefits += `<div style="margin-top:6px;font-size:11px;font-weight:700;color:#999">일자별 브랜드</div>${rows}`;
+    }
+    const dispName = canonName(s.name);
     const shot = `captures/${date}/${ch}_next_tab_full.png`;
     document.getElementById('ev-card').innerHTML =
       `<div class="ev-head">
          <span class="ev-logo" style="background:${meta.color}">${meta.label}</span>
-         <span class="ev-name">${s.name||''}</span>
+         <span class="ev-name">${dispName||''}</span>
          ${s.period?`<span class="ev-period">${s.period}</span>`:''}
          <button class="ev-close" onclick="closeCard()">&times;</button>
        </div>

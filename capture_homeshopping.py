@@ -960,21 +960,26 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     /* 행사 카드 모달 */
     .ev-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; justify-content: center; align-items: flex-start; padding: 40px 16px; overflow-y: auto; }
     .ev-modal.open { display: flex; }
-    .ev-card { background: white; border-radius: 16px; max-width: 560px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.25); overflow: hidden; }
+    .ev-card { background: white; border-radius: 16px; max-width: 620px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.25); overflow: hidden; }
     .ev-head { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 10px; }
     .ev-logo { font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 8px; color: white; white-space: nowrap; }
     .ev-name { font-size: 17px; font-weight: 800; flex: 1; color: #1a1a2e; }
     .ev-period { font-size: 12px; color: #fff; background: #ff6b35; padding: 3px 11px; border-radius: 20px; white-space: nowrap; }
     .ev-close { background: none; border: none; font-size: 24px; color: #999; cursor: pointer; line-height: 1; padding: 0 2px; }
     .ev-body { display: flex; gap: 0; }
-    .ev-shot { width: 220px; min-width: 220px; border-right: 1px solid #f0f0f0; background: #fafafa; padding: 12px; max-height: 70vh; overflow-y: auto; }
-    .ev-shot img { width: 100%; border-radius: 8px; border: 1px solid #eee; display: block; }
+    .ev-shot { width: 340px; min-width: 340px; border-right: 1px solid #f0f0f0; background: #fafafa; padding: 12px; max-height: 72vh; overflow-y: auto; }
+    .ev-shot img { width: 100%; border-radius: 8px; border: 1px solid #eee; display: block; cursor: zoom-in; }
     .ev-shot .cap { font-size: 11px; color: #999; text-align: center; margin-bottom: 8px; }
-    .ev-benefits { flex: 1; padding: 16px 20px; display: flex; flex-direction: column; gap: 9px; }
+    .ev-benefits { width: 220px; min-width: 180px; padding: 16px 18px; display: flex; flex-direction: column; gap: 9px; }
+    /* 캡처본 크게 보기 */
+    .img-zoom { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1100; justify-content: center; align-items: flex-start; padding: 24px; overflow-y: auto; cursor: zoom-out; }
+    .img-zoom.open { display: flex; }
+    .img-zoom img { max-width: 440px; width: 100%; height: auto; border-radius: 8px; margin: auto; }
+    .img-zoom .zoom-close { position: fixed; top: 14px; right: 20px; color: white; font-size: 34px; cursor: pointer; z-index: 1101; }
     .ev-bf { font-size: 13px; line-height: 1.5; color: #444; }
     .ev-bf .bt { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; margin-right: 7px; }
     @media (max-width: 760px) { .sched-wrap { padding: 10px; } .ch-label { width: 64px; min-width: 64px; font-size: 11px; }
-      .ev-body { flex-direction: column; } .ev-shot { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid #f0f0f0; max-height: 320px; } }
+      .ev-body { flex-direction: column; } .ev-shot { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid #f0f0f0; max-height: 360px; } .ev-benefits { width: 100%; min-width: 0; } }
   </style>
 </head>
 <body>
@@ -1005,6 +1010,10 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
 </div>
 <div class="ev-modal" id="ev-modal" onclick="if(event.target===this)closeCard()">
   <div class="ev-card" id="ev-card"></div>
+</div>
+<div class="img-zoom" id="img-zoom" onclick="closeZoom()">
+  <span class="zoom-close" onclick="closeZoom()">&times;</span>
+  <img id="img-zoom-img" src="" alt="캡처본 크게보기">
 </div>
 <script>
   const summaries = __SUMMARIES__;
@@ -1210,13 +1219,22 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
          <button class="ev-close" onclick="closeCard()">&times;</button>
        </div>
        <div class="ev-body">
-         <div class="ev-shot"><div class="cap">모바일 캡처본 (${date})</div><img src="${shot}" alt="캡처본" onerror="this.parentNode.innerHTML='<div class=cap>캡처 이미지 없음</div>'"></div>
+         <div class="ev-shot"><div class="cap">모바일 캡처본 (${date}) · 클릭 시 크게</div><img src="${shot}" alt="캡처본" onclick="openZoom('${shot}')" onerror="this.parentNode.innerHTML='<div class=cap>캡처 이미지 없음</div>'"></div>
          <div class="ev-benefits">${benefits}</div>
        </div>`;
     document.getElementById('ev-modal').classList.add('open');
   }
   function closeCard(){ document.getElementById('ev-modal').classList.remove('open'); }
-  document.addEventListener('keydown', e => { if(e.key==='Escape') closeCard(); });
+  function openZoom(src){
+    document.getElementById('img-zoom-img').src = src;
+    document.getElementById('img-zoom').classList.add('open');
+  }
+  function closeZoom(){ document.getElementById('img-zoom').classList.remove('open'); }
+  document.addEventListener('keydown', e => {
+    if(e.key !== 'Escape') return;
+    if(document.getElementById('img-zoom').classList.contains('open')) closeZoom();
+    else closeCard();
+  });
 
   function render(){
     const days = [...Array(7)].map((_,i)=>{ const d=new Date(_weekMon); d.setDate(d.getDate()+i); return d; });

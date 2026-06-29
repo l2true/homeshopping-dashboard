@@ -1237,10 +1237,10 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     });
     if(!benefits) benefits = '<div class="ev-bf" style="color:#aaa">표시할 혜택 정보가 없습니다.</div>';
     // 매일 브랜드만 바뀌는 행사면 일자별 브랜드 목록 추가
+    const isRotating = canonName(s.name) !== s.name;   // 매일 브랜드만 바뀌는 회전 행사
     const days = eventDays(ch, date);
     const brands = days.map(d => ({d:d.date, b:brandOf(d.name)})).filter(x => x.b);
-    const uniqBrands = [...new Set(brands.map(x => x.b))];
-    if(uniqBrands.length > 1){
+    if(isRotating && brands.length){
       const rows = brands.map(x => `<div class="ev-bf"><span class="bt" style="background:#1a1a2e15;color:#1a1a2e">${x.d.slice(5).replace('-','/')}</span>${x.b}</div>`).join('');
       benefits += `<div style="margin-top:6px;font-size:11px;font-weight:700;color:#999">일자별 브랜드</div>${rows}`;
     }

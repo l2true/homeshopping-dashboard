@@ -1043,7 +1043,11 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     const [mo,da] = mds[mds.length-1].split('/').map(Number);
     const sd = parse(startISO);
     let end = new Date(sd.getFullYear(), mo-1, da);
-    if(end < sd) end = new Date(sd.getFullYear()+1, mo-1, da);
+    if(end < sd){
+      // 연말→연초 교차(예: 12월 시작 → 1월 종료)만 다음해로. 그 외 과거 날짜는 stale이므로 무시.
+      if(sd.getMonth() >= 9 && (mo-1) <= 2) end = new Date(sd.getFullYear()+1, mo-1, da);
+      else return null;
+    }
     return end;
   }
 
@@ -1082,9 +1086,11 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
       channels.forEach(ch => {
         const s = day[ch.key];
         if(!s || !s.name || s.name === '해당없음') return;
-        const key = (s.start||date) + '|' + s.name;
+        // 캡처 날짜 기준으로 그룹핑 (stale한 start 필드 무시) → 반복 1일 행사가 길게 늘어나지 않음.
+        // 여러 날 지속 행사는 아래 merge에서 period 종료일이 다리를 놓아 한 막대로 통합됨.
+        const key = date + '|' + s.name;
         let ev = byCh[ch.key][key];
-        if(!ev){ ev = {name:canonName(s.name), startISO:s.start||date, period:s.period||'', minD:date, maxD:date, types:new Set()}; byCh[ch.key][key]=ev; }
+        if(!ev){ ev = {name:canonName(s.name), startISO:date, period:s.period||'', minD:date, maxD:date, types:new Set()}; byCh[ch.key][key]=ev; }
         if(date < ev.minD) ev.minD = date;
         if(date > ev.maxD) ev.maxD = date;
         if(s.period) ev.period = s.period;
@@ -1094,10 +1100,15 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     channels.forEach(ch => {
       const occ = Object.values(byCh[ch.key]).map(ev => {
         const start = parse(ev.startISO);
-        const pe = periodEnd(ev.period, ev.startISO);
         const maxd = parse(ev.maxD);
         let end = maxd;
-        if(pe && pe > end) end = pe;   // 기간 종료일이 더 늦으면 사용
+        // 같은 날짜 범위(예: "6/11 ~ 6/11")는 stale 1일 행사이므로 무시. 진짜 기간 범위만 종료일로 사용.
+        const mds = (ev.period||'').match(/\d{1,2}\/\d{1,2}/g) || [];
+        const sameDayPeriod = mds.length >= 2 && mds[0] === mds[mds.length-1];
+        if(!sameDayPeriod){
+          const pe = periodEnd(ev.period, ev.startISO);
+          if(pe && pe > end) end = pe;   // 기간 종료일이 더 늦으면 사용
+        }
         if(end < start) end = start;
         ev._start = start; ev._end = end;
         return ev;

@@ -15,6 +15,7 @@ TODAY_KEY   = date.today().strftime('%Y-%m-%d')
 
 MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
 VIEWPORT  = {'width': 390, 'height': 844}
+DEVICE_SCALE = 2   # 캡처 해상도 배율 (작은 글씨/숫자 판독 정확도 향상)
 
 
 def close_popups(page):
@@ -210,7 +211,7 @@ def save_page_text(page, path):
 
 def run_hyundai(browser, archive_dir):
     """현대홈쇼핑 캡처"""
-    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
+    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
     page.goto('https://www.hmall.com', wait_until='domcontentloaded', timeout=30000)
     page.wait_for_timeout(3000)
     close_popups(page)
@@ -270,7 +271,7 @@ def _run_with_retry(func, browser, archive_dir, retries=1):
 
 def run_gs(browser, archive_dir):
     """GS SHOP 캡처"""
-    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
+    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
     # 폰트 로딩이 스크린샷을 무한 대기시키는 문제 방지
     page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
     page.goto('https://m.gsshop.com', wait_until='domcontentloaded', timeout=60000)
@@ -326,7 +327,7 @@ HYUNDAI_SKIP_TABS = ['오감쇼']                    # 현대: 방송 프로그�
 
 def run_cj(browser, archive_dir):
     """CJ온스타일 캡처"""
-    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
+    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
     page.goto('https://display.cjonstyle.com/m/homeTab/main?hmtabMenuId=H00005', wait_until='domcontentloaded', timeout=30000)
     page.wait_for_timeout(3000)
     close_popups(page)
@@ -364,7 +365,7 @@ def close_popups_lotte(page):
 
 def run_lotte(browser, archive_dir):
     """롯데홈쇼핑 캡처"""
-    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA)
+    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
     page.goto('https://m.lotteimall.com', wait_until='domcontentloaded', timeout=30000)
     page.wait_for_timeout(3000)
     close_popups_lotte(page)

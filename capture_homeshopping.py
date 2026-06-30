@@ -1072,7 +1072,11 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   // 매일 브랜드만 바뀌는 정기 행사는 대표명으로 통일 (브랜드명은 행사명에서 제거)
   // 예: "씨드비 지금이닷 브랜드", "지금이닷 브랜드 (돌체구스토)" → "지금이닷 브랜드"
   function canonName(n){
-    if(/지금이닷/.test(n||'')) return '지금이닷 브랜드';
+    n = n || '';
+    if(/지금이닷/.test(n)) return '지금이닷 브랜드';
+    if(/썸머스타트/.test(n)) return '썸머스타트';          // 패션NOW 썸머스타트 등 → 서브타이틀이 행사명
+    if(/뷰티위크/.test(n)) return '뷰티위크';              // 현대Hmall 뷰티위크/뷰티위크 특가모음 등
+    if(/pick/i.test(n) && /(5월|오월)/.test(n)) return '5월 PICK DAY';  // 5월/오월 PICK 데이
     return n;
   }
 

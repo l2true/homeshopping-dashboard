@@ -1035,6 +1035,16 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   const parse = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
   function mondayOf(s){ const d=(typeof s==='string')?parse(s):new Date(s); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); d.setHours(0,0,0,0); return d; }
 
+  // 기간(period) 텍스트에서 시작일 추출 (범위형일 때만 의미)
+  function periodStart(period, refISO){
+    const mds = (period||'').match(/\d{1,2}\/\d{1,2}/g);
+    if(!mds) return null;
+    const [mo,da] = mds[0].split('/').map(Number);
+    const rd = parse(refISO);
+    let st = new Date(rd.getFullYear(), mo-1, da);
+    if(st > rd && rd.getMonth() <= 2 && (mo-1) >= 9) st = new Date(rd.getFullYear()-1, mo-1, da); // 연초 캡처 + 작년말 시작
+    return st;
+  }
   // 기간(period) 텍스트에서 종료일 추출
   function periodEnd(period, startISO){
     if(!period) return null;
@@ -1103,18 +1113,21 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     });
     channels.forEach(ch => {
       const occ = Object.values(byCh[ch.key]).map(ev => {
-        const start = parse(ev.startISO);
-        const maxd = parse(ev.maxD);
-        let end = maxd;
-        // 같은 날짜 범위(예: "6/11 ~ 6/11")는 stale 1일 행사이므로 무시. 진짜 기간 범위만 종료일로 사용.
+        let st = parse(ev.minD);
+        let end = parse(ev.maxD);
         const mds = (ev.period||'').match(/\d{1,2}\/\d{1,2}/g) || [];
-        const sameDayPeriod = mds.length >= 2 && mds[0] === mds[mds.length-1];
-        if(!sameDayPeriod){
-          const pe = periodEnd(ev.period, ev.startISO);
-          if(pe && pe > end) end = pe;   // 기간 종료일이 더 늦으면 사용
+        const sameDay = mds.length >= 2 && mds[0] === mds[mds.length-1];   // "6/11~6/11" 같은 stale 1일
+        const fullRange = mds.length >= 2 && !sameDay;                      // 진짜 기간 범위
+        if(!sameDay && mds.length >= 1){
+          const pe = periodEnd(ev.period, ev.minD);
+          if(pe && pe > end) end = pe;   // 기간 종료일 반영
         }
-        if(end < start) end = start;
-        ev._start = start; ev._end = end;
+        if(fullRange){
+          const ps = periodStart(ev.period, ev.minD);
+          if(ps && ps < st && (st - ps)/DAY <= 60) st = ps;   // 배너 시작일이 캡처보다 이르면 확장(60일 이내)
+        }
+        if(end < st) end = st;
+        ev._start = st; ev._end = end; ev.hasRange = fullRange;
         return ev;
       });
       // 이름이 같은(표기 흔들림 포함) + 기간이 겹치거나 맞닿는 행사를 하나의 막대로 병합.
@@ -1125,13 +1138,17 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
       occ.forEach(ev => {
         let target = null;
         for(const c of merged){
-          const overlap = ev._start.getTime() <= c._end.getTime() + DAY &&
-                          ev._end.getTime()   >= c._start.getTime() - DAY;
+          // 기간 범위가 있는 행사끼리는 실제 겹칠 때만(맞닿음 X) 병합 → 인접 주차 행사(지금이닷 등) 잘못 붙는 것 방지.
+          // 둘 다 1일/범위없음이면 하루 인접(+1)까지 병합(뷰티위크 연속 캡처 등).
+          const gap = (ev.hasRange || c.hasRange) ? 0 : DAY;
+          const overlap = ev._start.getTime() <= c._end.getTime() + gap &&
+                          ev._end.getTime()   >= c._start.getTime() - gap;
           if(overlap && nameMatch(c.name, ev.name)){ target = c; break; }
         }
         if(target){
           if(ev._end > target._end) target._end = ev._end;
           if(ev._start < target._start) target._start = ev._start;
+          if(ev.hasRange) target.hasRange = true;
           if(ev.minD < target.firstDate) target.firstDate = ev.minD;  // 가장 이른 등장일
           ev.types.forEach(t => target.types.add(t));
           if(ev.period && !target.period) target.period = ev.period;

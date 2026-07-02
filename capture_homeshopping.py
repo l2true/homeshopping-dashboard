@@ -797,7 +797,7 @@ def consolidate_ongoing_events():
         # 통합 body 생성 — 이미 묶인 요약(·, 등 포함)을 우선 선택, 없으면 가장 짧은 것
         lines = ['혜택:']
         for btype, details in benefit_map.items():
-            aggregated = [d for d in details if '·' in d or d.endswith('등)') or d.endswith('등')]
+            aggregated = [d for d in details if '·' in d or ',' in d or d.endswith('등)') or d.endswith('등')]
             if aggregated:
                 best = max(aggregated, key=len)  # 묶인 것 중 가장 정보 많은 것
             else:

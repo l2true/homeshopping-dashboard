@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>유진즈원</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
+
+    header {
+      background: white; padding: 18px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 1px 0 #ebebf0;
+    }
+    header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+    .header-sub { font-size: 10px; color: #bbb; font-weight: 500; letter-spacing: 2px; margin-top: 3px; }
+    .status-dot {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: #888;
+    }
+    .status-dot::before {
+      content: ''; width: 8px; height: 8px; border-radius: 50%;
+      background: #22c55e; box-shadow: 0 0 0 3px #bbf7d0;
+    }
+    .status-dot.offline::before { background: #ef4444; box-shadow: 0 0 0 3px #fecaca; }
+
+    .bookmark-bar {
+      background: white; border-bottom: 1px solid #ebebf0;
+      padding: 0 28px; display: flex; align-items: center; gap: 4px;
+      overflow-x: auto; white-space: nowrap;
+    }
+    .bookmark-bar::-webkit-scrollbar { display: none; }
+    .bm {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 8px 12px; border-radius: 6px; text-decoration: none;
+      font-size: 12px; font-weight: 600; color: #444;
+      transition: background 0.12s, color 0.12s;
+      flex-shrink: 0;
+    }
+    .bm:hover { background: #f3f4f6; color: #1a1a2e; }
+    .bm .bm-icon { font-size: 14px; }
+    .bm-divider { width: 1px; height: 16px; background: #e5e7eb; margin: 0 4px; flex-shrink: 0; }
+
+    .btn-copy {
+      flex: 1; padding: 10px 18px; border: 1.5px solid #e5e7eb; border-radius: 9px;
+      background: white; font-size: 13px; font-weight: 700; color: #374151;
+      cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-copy:hover { background: #f3f4f6; border-color: #d1d5db; }
+    .btn-copy.copied { background: #f0fdf4; border-color: #86efac; color: #15803d; }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #1a1a2e; color: white; font-size: 13px; font-weight: 600;
+      padding: 10px 20px; border-radius: 10px;
+      opacity: 0; transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none; z-index: 999; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .page { max-width: 1400px; margin: 0 auto; padding: 28px 32px; }
+
+    .group-header {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; gap: 14px;
+      margin-top: 8px;
+    }
+    .group-header:first-child { margin-top: 0; }
+    .group-header h2 {
+      font-size: 13px; font-weight: 800; letter-spacing: 1.5px;
+      color: #1a1a2e; text-transform: uppercase; white-space: nowrap;
+    }
+    .group-header::after {
+      content: ''; flex: 1; height: 1px; background: #e5e7eb;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+      margin-top: 14px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: white; border-radius: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+      transition: box-shadow 0.2s, transform 0.15s;
+    }
+    .card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.11); transform: translateY(-2px); }
+
+    .card-header { padding: 18px 20px 12px; border-bottom: 1px solid #f3f4f6; }
+    .card-tag {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      padding: 3px 9px; border-radius: 20px; letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .card-title { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+    .card-desc { font-size: 12px; color: #666; line-height: 1.5; }
+
+    .card-body { padding: 14px 20px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+
+    .param-group label {
+      display: block; font-size: 11px; font-weight: 700;
+      color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .param-group input, .param-group select, .param-group textarea {
+      width: 100%; border: 1.5px solid #e5e7eb; border-radius: 8px;
+      padding: 8px 11px; font-size: 13px; font-family: inherit;
+      background: #fafafa; color: #1a1a2e;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+    .param-group input:focus, .param-group select:focus, .param-group textarea:focus {
+      border-color: #6366f1; background: white;
+    }
+    .param-group textarea { resize: vertical; min-height: 60px; }
+
+    .card-footer { padding: 14px 20px; border-top: 1px solid #f3f4f6; display: flex; gap: 8px; }
+    .btn-run {
+      flex: 1; padding: 10px 18px; border: none; border-radius: 9px;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-run:hover { opacity: 0.88; }
+    .btn-run:active { transform: scale(0.97); }
+    .btn-run:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-preview {
+      padding: 10px 14px; border: 1.5px solid #e5e7eb; border-radius: 9px;
+      background: white; font-size: 12px; color: #555; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-preview:hover { background: #f3f4f6; }
+
+    /* 색상 테마 */
+    .theme-purple .card-tag { background: #ede9fe; color: #7c3aed; }
+    .theme-purple .btn-run { background: #7c3aed; color: white; }
+    .theme-blue .card-tag { background: #dbeafe; color: #1d4ed8; }
+    .theme-blue .btn-run { background: #1d4ed8; color: white; }
+    .theme-green .card-tag { background: #dcfce7; color: #15803d; }
+    .theme-green .btn-run { background: #15803d; color: white; }
+    .theme-orange .card-tag { background: #ffedd5; color: #c2410c; }
+    .theme-orange .btn-run { background: #c2410c; color: white; }
+    .theme-pink .card-tag { background: #fce7f3; color: #be185d; }
+    .theme-pink .btn-run { background: #be185d; color: white; }
+    .theme-gray .card-tag { background: #f3f4f6; color: #374151; }
+    .theme-gray .btn-run { background: #374151; color: white; }
+
+    /* 출력 패널 */
+    #output-panel {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #0f172a; color: #e2e8f0;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 12px; line-height: 1.6;
+      max-height: 0; overflow: hidden;
+      transition: max-height 0.3s ease;
+      z-index: 200;
+    }
+    #output-panel.open { max-height: 320px; }
+    #output-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px; background: #1e293b;
+      font-size: 12px; font-weight: 700; color: #94a3b8;
+      cursor: pointer;
+    }
+    #output-header .running-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #7c3aed; color: white; font-size: 10px;
+      padding: 2px 9px; border-radius: 20px;
+    }
+    #output-header .running-badge::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: white; animation: pulse 1s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    #output-body {
+      padding: 12px 20px; overflow-y: auto;
+      max-height: 260px; white-space: pre-wrap; word-break: break-all;
+    }
+    .out-line { margin: 0; }
+    .out-error { color: #f87171; }
+    .out-done { color: #4ade80; font-weight: 700; }
+
+    /* 프리뷰 모달 */
+    #preview-modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); z-index: 300;
+      align-items: center; justify-content: center;
+    }
+    #preview-modal.open { display: flex; }
+    #preview-box {
+      background: white; border-radius: 14px; padding: 24px;
+      max-width: 560px; width: 90%; max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    #preview-box h3 { font-size: 14px; color: #666; margin-bottom: 10px; }
+    #preview-box pre {
+      background: #f8f9fa; border-radius: 8px; padding: 14px;
+      font-family: 'Consolas', monospace; font-size: 12px;
+      white-space: pre-wrap; word-break: break-all; color: #1a1a2e;
+    }
+    #preview-close {
+      margin-top: 14px; width: 100%; padding: 10px;
+      background: #f3f4f6; border: none; border-radius: 8px;
+      cursor: pointer; font-size: 13px; font-weight: 700;
+    }
+    #preview-close:hover { background: #e5e7eb; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🐨 유진즈원</h1>
+    <div class="header-sub">YUJIN'S SALESONE</div>
+  </div>
+  <div class="status-dot" id="server-status">서버 연결 중...</div>
+</header>
+
+<div class="bookmark-bar" id="bookmark-bar">
+  <a class="bm" href="https://m.gsshop.com/index.gs" target="_blank"><span class="bm-icon">🛒</span> GS SHOP</a>
+  <a class="bm" id="bm-preview" href="#" target="_blank"><span class="bm-icon">👁️</span> 미리보기</a>
+  <div class="bm-divider"></div>
+  <a class="bm" href="https://docs.google.com/spreadsheets/d/1ManZ2SVyoL9nGbzWvEMY2C0DUPMEoofZc3CGPkyiLtA/edit#gid=0" target="_blank"><span class="bm-icon">📊</span> 마케팅허브</a>
+  <a class="bm" href="https://docs.google.com/spreadsheets/d/1nQkWuXxff5OWD2nMKIOLSvzUfXbIho2GBr_HDz5BHqs/edit?gid=228677311#gid=228677311" target="_blank"><span class="bm-icon">🎨</span> 디자인</a>
+  <div class="bm-divider"></div>
+  <a class="bm" href="https://l2true.github.io/homeshopping-dashboard/" target="_blank"><span class="bm-icon">📡</span> 경쟁사 프로모션</a>
+  <div class="bm-divider"></div>
+  <a class="bm" href="https://gsretail-my.sharepoint.com/" target="_blank"><span class="bm-icon">🏠</span> 홈</a>
+</div>
+
+<div class="page" id="page"></div>
+<div class="toast" id="toast">📋 Claude 채팅창에 붙여넣으세요</div>
+
+<!-- 출력 패널 -->
+<div id="output-panel">
+  <div id="output-header" onclick="toggleOutput()">
+    <span id="output-title">출력</span>
+    <span id="running-badge" class="running-badge" style="display:none">실행 중</span>
+  </div>
+  <div id="output-body"></div>
+</div>
+
+
+<script>
+const SP_DIR = "C:\\AI\\sp";
+
+// ── 통합 아이템 정의 (그룹 순서: 상시 → 주간 → 편성) ─────────────
+const ITEMS = [
+  // ── 상시 ──────────────────────────────────────────────────────
+  {
+    id: "teukga-chongjiphap", type: "script",
+    theme: "purple", tag: "상시",
+    title: "특가총집합",
+    desc: "취합&선정시트 → 총집합 추천 템플릿 채우기 (Day1~4 블록)",
+    script: SP_DIR + "\\fill_chongjiphap.py",
+    cwd: SP_DIR,
+    params: [{ key: "dates", label: "날짜 (예: 6/2 6/3 6/4 6/5)", placeholder: "6/2 6/3 6/4 6/5" }],
+    argsFromParams: (p) => p.dates ? p.dates.split(/\s+/) : [],
+  },
+  {
+    id: "fill-brand-special", type: "claude",
+    theme: "orange", tag: "상시",
+    title: "브랜드특가 채우기",
+    desc: "브랜드특가(입력) 시트 → 편성스케줄 89~92행 이어 채우기",
+    params: [],
+    promptFn: () => `브랜드특가 채워줘`,
+  },
+  // ── 주간 ──────────────────────────────────────────────────────
+  {
+    id: "fill-top-banner-landing", type: "claude",
+    theme: "blue", tag: "주간",
+    title: "특가최상단 랜딩 채우기",
+    desc: "편성스케줄 상단배너 ④~⑩ 슬롯 랜딩코드 채우기",
+    params: [],
+    promptFn: () => `특가최상단 랜딩 채워줘`,
+  },
+  {
+    id: "top-banner-template", type: "script",
+    theme: "blue", tag: "주간",
+    title: "최상단배너 템플릿 채우기",
+    desc: "취합&선정시트 → 특가 최상단 템플릿(01-1) 자동 기입",
+    script: SP_DIR + "\\fill_template.py",
+    cwd: SP_DIR,
+    params: [{ key: "week", label: "주차 힌트 (선택)", placeholder: "예: 6/2~6/8  또는 latest" }],
+  },
+  {
+    id: "harutukga-template", type: "script",
+    theme: "blue", tag: "주간",
+    title: "하루특가 템플릿 채우기",
+    desc: "취합&선정시트 → 하루특가 템플릿(01-2) 자동 기입",
+    script: SP_DIR + "\\하루특가_자동변환.py",
+    cwd: SP_DIR,
+    params: [],
+  },
+  {
+    id: "timesale-template", type: "script",
+    theme: "blue", tag: "주간",
+    title: "타임특가 템플릿 채우기",
+    desc: "취합&선정시트 → 타임특가 템플릿(02-2) 자동 기입",
+    script: SP_DIR + "\\타임특가_자동변환.py",
+    cwd: SP_DIR,
+    params: [],
+  },
+  {
+    id: "manhaeng-template", type: "script",
+    theme: "blue", tag: "주간",
+    title: "만원의행복 템플릿 채우기",
+    desc: "취합&선정시트 → 만원의행복 템플릿(02-3) 자동 기입",
+    script: SP_DIR + "\\만원의행복_자동변환.py",
+    cwd: SP_DIR,
+    params: [],
+  },
+  // ── 편성 ──────────────────────────────────────────────────────
+  {
+    id: "harutukga-landing", type: "script",
+    theme: "green", tag: "편성",
+    title: "하루특가 랜딩 채우기",
+    desc: "취합&선정시트 O선정 항목 → 편성스케줄 하루특가 랜딩코드 기입",
+    script: SP_DIR + "\\편성스케줄_하루특가_기입.py",
+    cwd: SP_DIR,
+    params: [],
+  },
+  {
+    id: "sync-forward", type: "claude",
+    theme: "green", tag: "편성",
+    title: "취합시트 → 편성스케줄",
+    desc: "취합시트 O표시 항목의 랜딩코드·팀·담당MD를 편성스케줄에 채우기",
+    params: [],
+    promptFn: () => `cd C:/AI && python sync_schedule.py fill-schedule`,
+  },
+  {
+    id: "sync-backward", type: "claude",
+    theme: "green", tag: "편성",
+    title: "편성스케줄 → 취합시트",
+    desc: "편성스케줄 기준으로 취합시트에 노출일자·시간·순서 채우기 (타임특가 + 만행)",
+    params: [],
+    promptFn: () => `cd C:/AI && python sync_schedule.py fill-time && python sync_schedule.py fill-manhaeng`,
+  },
+  {
+    id: "sync-diff", type: "claude",
+    theme: "green", tag: "편성",
+    title: "변경분만 동기화",
+    desc: "편성스케줄 기준으로 취합시트와 비교해 달라진 부분만 반영",
+    params: [{ key: "detail", label: "대상 (타임특가 / 만행)", type: "text", placeholder: "타임특가 또는 만행" }],
+    promptFn: (p) => {
+      const t = (p.detail || "").includes("만행") ? "manhaeng" : "time";
+      return `cd C:/AI && python sync_schedule.py sync-${t}-dates`;
+    },
+  },
+  {
+    id: "timesale-data-boost", type: "script",
+    theme: "green", tag: "편성",
+    title: "타임특가 데이터 보강",
+    desc: "타임특가 취합시트에 현재가·리뷰평점·구좌실적·최근편성일자 등 보강",
+    script: SP_DIR + "\\타임특가_데이터보강.py",
+    cwd: SP_DIR,
+    params: [],
+  },
+  {
+    id: "manhaeng-data-boost", type: "script",
+    theme: "green", tag: "편성",
+    title: "만원의행복 데이터 보강",
+    desc: "만원의행복 취합시트에 현재가·리뷰평점·구좌실적·최근편성일자 등 보강",
+    script: SP_DIR + "\\만원의행복_데이터보강.py",
+    cwd: SP_DIR,
+    params: [],
+  },
+  {
+    id: "check-duplicate-scheduling", type: "claude",
+    theme: "green", tag: "편성",
+    title: "중복 편성 체크",
+    desc: "같은 날/주 동일 상품·브랜드·카테고리 중복 편성 점검",
+    params: [{ key: "range", label: "점검 기간 (예: 6/2~6/8)", type: "text", placeholder: "6/2~6/8" }],
+    promptFn: (p) => `편성스케줄에서 ${p.range} 중복 편성 점검해줘`,
+  },
+];
+
+// ── 카드 렌더 ───────────────────────────────────────────────────
+function buildCard(item) {
+  const isScript = item.type === "script";
+  const paramsHtml = (item.params || []).map(p => `
+    <div class="param-group">
+      <label>${p.label}</label>
+      <input type="text" id="param-${item.id}-${p.key}" placeholder="${p.placeholder || p.placeholder || ''}">
+    </div>
+  `).join('');
+
+  const footerBtns = isScript
+    ? `<button class="btn-run" id="run-${item.id}" onclick="runItem('${item.id}')">▶ 실행</button>`
+    : `<button class="btn-copy" id="run-${item.id}" onclick="copyItem('${item.id}')">📋 복사</button>`;
+
+  const card = document.createElement("div");
+  card.className = `card theme-${item.theme}`;
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="card-tag">${item.tag}</span>
+      <div class="card-title">${item.title}</div>
+      <div class="card-desc">${item.desc}</div>
+    </div>
+    <div class="card-body">${paramsHtml}</div>
+    <div class="card-footer">${footerBtns}</div>
+  `;
+  return card;
+}
+
+function getParam(itemId, key) {
+  const el = document.getElementById(`param-${itemId}-${key}`);
+  return el ? el.value.trim() : "";
+}
+
+// ── 실행 ────────────────────────────────────────────────────────
+let currentEventSource = null;
+
+function runItem(itemId) {
+  const item = ITEMS.find(x => x.id === itemId);
+  if (!item) return;
+
+  if (currentEventSource) { currentEventSource.close(); currentEventSource = null; }
+
+  const panel = document.getElementById("output-panel");
+  const body  = document.getElementById("output-body");
+  const badge = document.getElementById("running-badge");
+  const title = document.getElementById("output-title");
+  body.innerHTML = "";
+  panel.classList.add("open");
+  badge.style.display = "inline-flex";
+  title.textContent = item.title;
+
+  const btn = document.getElementById(`run-${itemId}`);
+  btn.disabled = true;
+  btn.textContent = "⏳ 실행 중...";
+
+  let fetchPromise;
+  if (item.type === "script") {
+    const p = {};
+    (item.params || []).forEach(param => { p[param.key] = getParam(itemId, param.key); });
+    const args = item.argsFromParams
+      ? item.argsFromParams(p)
+      : (item.params || []).map(param => p[param.key]).filter(v => v);
+    fetchPromise = fetch("/run-script", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ script: item.script, cwd: item.cwd, args }),
+    });
+  } else {
+    const p = {};
+    (item.params || []).forEach(param => { p[param.key] = getParam(itemId, param.key); });
+    const prompt = item.promptFn(p);
+    fetchPromise = fetch("/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+    });
+  }
+
+  fetchPromise.then(res => {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    function read() {
+      reader.read().then(({ done, value }) => {
+        if (done) { finishRun(itemId); return; }
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop();
+        lines.forEach(line => handleSSELine(line, itemId));
+        read();
+      });
+    }
+    read();
+  }).catch(err => {
+    appendOutput(`연결 오류: ${err.message}`, "error");
+    finishRun(itemId);
+  });
+}
+
+let sseEvent = "";
+function handleSSELine(line, itemId) {
+  if (line.startsWith("event:")) {
+    sseEvent = line.slice(6).trim();
+  } else if (line.startsWith("data:")) {
+    const text = line.slice(5);
+    if (sseEvent === "done") {
+      appendOutput("✅ 완료", "done");
+      finishRun(itemId);
+      sseEvent = "";
+    } else if (sseEvent === "error") {
+      appendOutput(text, "error");
+      sseEvent = "";
+    } else {
+      appendOutput(text);
+      sseEvent = "";
+    }
+  }
+}
+
+function appendOutput(text, cls = "") {
+  const body = document.getElementById("output-body");
+  const p = document.createElement("p");
+  p.className = `out-line ${cls ? "out-"+cls : ""}`;
+  p.textContent = text;
+  body.appendChild(p);
+  body.scrollTop = body.scrollHeight;
+}
+
+function finishRun(itemId) {
+  const btn = document.getElementById(`run-${itemId}`);
+  if (btn) { btn.disabled = false; btn.textContent = "▶ 실행"; }
+  document.getElementById("running-badge").style.display = "none";
+}
+
+// ── 클립보드 복사 (claude 타입) ─────────────────────────────────
+function copyItem(itemId) {
+  const item = ITEMS.find(x => x.id === itemId);
+  if (!item) return;
+  const p = {};
+  (item.params || []).forEach(param => { p[param.key] = getParam(itemId, param.key); });
+  const prompt = item.promptFn(p);
+  navigator.clipboard.writeText(prompt).then(() => {
+    const btn = document.getElementById(`run-${itemId}`);
+    btn.textContent = "✅ 복사됨";
+    btn.classList.add("copied");
+    showToast();
+    setTimeout(() => {
+      btn.textContent = "📋 복사";
+      btn.classList.remove("copied");
+    }, 2000);
+  });
+}
+
+function showToast() {
+  const t = document.getElementById("toast");
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2500);
+}
+
+// ── 출력 패널 토글 ──────────────────────────────────────────────
+function toggleOutput() {
+  document.getElementById("output-panel").classList.toggle("open");
+}
+
+// ── 서버 상태 확인 ──────────────────────────────────────────────
+async function checkServer() {
+  const el = document.getElementById("server-status");
+  try {
+    await fetch("/run", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({prompt:"ping"}) });
+    el.textContent = "서버 연결됨";
+    el.classList.remove("offline");
+  } catch {
+    el.textContent = "서버 오프라인 — python skills_server.py 실행 필요";
+    el.classList.add("offline");
+  }
+}
+
+// ── 미리보기 URL — 내일 날짜 자동 세팅 ──────────────────────────
+(function() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const y = tomorrow.getFullYear();
+  const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  const d = String(tomorrow.getDate()).padStart(2, '0');
+  const openDate = `${y}${m}${d}080001`;
+  document.getElementById("bm-preview").href =
+    `https://m.gsshop.com/index.gs?openDate=${openDate}`;
+})();
+
+// ── 초기화 ──────────────────────────────────────────────────────
+const GROUPS = ["상시", "주간", "편성"];
+const page = document.getElementById("page");
+
+GROUPS.forEach(group => {
+  const items = ITEMS.filter(x => x.tag === group);
+  if (!items.length) return;
+
+  const header = document.createElement("div");
+  header.className = "group-header";
+  header.innerHTML = `<h2>${group}</h2>`;
+  page.appendChild(header);
+
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  items.forEach(item => grid.appendChild(buildCard(item)));
+  page.appendChild(grid);
+});
+
+checkServer();
+</script>
+</body>
+</html>

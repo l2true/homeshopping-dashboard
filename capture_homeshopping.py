@@ -755,12 +755,13 @@ def consolidate_ongoing_events():
         if len(entries) < 2:
             continue
         # 동일 혜택종류에 3가지 이상 서로 다른 내용이 있으면 날짜별 의도 변화 → skip
+        # (카드는 매일 % 자체가 바뀔 수 있는 필드라 여기서 제외 — 별도로 날짜별 그대로 보존)
         from collections import defaultdict as _dd
         type_details = _dd(set)
         for _, body, _, _, _ in entries:
             for line in body.split('\n'):
                 t = line.strip()
-                if ':' in t and not t.startswith('혜택'):
+                if ':' in t and not t.startswith('혜택') and not t.startswith('카드:'):
                     btype, _, detail = t.partition(':')
                     type_details[btype.strip()].add(detail.strip())
         if any(len(v) >= 3 for v in type_details.values()):
@@ -774,6 +775,8 @@ def consolidate_ongoing_events():
         best_start = min(starts) if starts else ''
 
         # 모든 날짜의 혜택 줄 수집 → 혜택종류별 unique detail
+        # 카드 혜택은 카드사가 매일 바뀌듯 % 자체도 날짜별로 바뀔 수 있어 통합 대상에서 제외하고
+        # 각 날짜가 그날 실제로 캡처한 값을 그대로 유지한다 (아래 per-date 처리).
         benefit_map = OrderedDict()
         for _, body, _, _, _ in entries:
             for line in body.split('\n'):
@@ -785,9 +788,7 @@ def consolidate_ongoing_events():
                     btype = btype.strip()
                     detail = detail.strip()
                     _VALID_TYPES = {'카드','적립','사은품','경품','할인','특가','쿠폰'}
-                if btype and detail:
-                        if btype == '카드':
-                            detail = _clean_card_detail(detail)
+                if btype and detail and btype != '카드':
                         if btype not in _VALID_TYPES:
                             btype = '특가'  # 비표준 혜택종류 → 특가로 통일
                         if btype not in benefit_map:
@@ -798,7 +799,7 @@ def consolidate_ongoing_events():
         if not benefit_map:
             continue
 
-        # 통합 body 생성 — 이미 묶인 요약(·, 등 포함)을 우선 선택, 없으면 가장 짧은 것
+        # 통합 body 생성 (카드 제외) — 이미 묶인 요약(·, 등 포함)을 우선 선택, 없으면 가장 짧은 것
         lines = ['혜택:']
         for btype, details in benefit_map.items():
             aggregated = [d for d in details if '·' in d or ',' in d or d.endswith('등)') or d.endswith('등')]
@@ -807,15 +808,22 @@ def consolidate_ongoing_events():
             else:
                 best = min(details, key=len)     # 아니면 가장 간결한 것
             lines.append(f'  {btype}: {best}')
-        consolidated_body = '\n'.join(lines)
+        consolidated_body_base = '\n'.join(lines)
 
         # 날짜 형식인 period만 후보로 — "5/25 ~ 6/7" 같이 숫자/슬래시/물결 포함
         valid_periods = [e[2] for e in entries if e[2] and _re_module.search(r'\d+/\d+', e[2])]
         best_period = max(valid_periods, key=len, default='')
 
-        # 4. 해당 행사 모든 날짜 업데이트 (이름·start·period·body 모두 통일)
+        # 4. 해당 행사 모든 날짜 업데이트 (이름·start·period·통일, 카드 제외 혜택만 통합)
         changed_dates = []
         for date, body, period, start, name in entries:
+            # 그날 원래 캡처된 카드 줄을 그대로 보존
+            own_card_lines = [l.strip() for l in body.split('\n')
+                               if l.strip().startswith('카드:')]
+            consolidated_body = consolidated_body_base
+            if own_card_lines:
+                consolidated_body += '\n  ' + '\n  '.join(own_card_lines)
+
             needs_update = (
                 body != consolidated_body or
                 name != best_name or

@@ -17,6 +17,30 @@ MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/
 VIEWPORT  = {'width': 390, 'height': 844}
 DEVICE_SCALE = 2   # 캡처 해상도 배율 (작은 글씨/숫자 판독 정확도 향상)
 
+# 브랜드: 홈쇼핑행사모아 — 로고 마크(겹친 둥근 사각형) + 워드마크 컬러
+SITE_NAME = '홈쇼핑행사모아'
+BRAND_NAVY   = '#1a1a2e'
+BRAND_ORANGE = '#e2541f'
+BRAND_PEACH  = '#f6cba5'
+LOGO_MARK_SVG = (
+    '<svg width="30" height="30" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+    f'<rect x="1" y="5" width="15" height="15" rx="5" fill="{BRAND_PEACH}"/>'
+    f'<rect x="10" y="9" width="17" height="17" rx="5.5" fill="{BRAND_ORANGE}"/>'
+    '</svg>'
+)
+LOGO_WORDMARK_HTML = (
+    f'<span style="display:inline-flex;align-items:center;gap:8px">{LOGO_MARK_SVG}'
+    f'<span style="font-weight:800"><span style="color:{BRAND_NAVY}">홈쇼핑행사</span>'
+    f'<span style="color:{BRAND_ORANGE}">모아</span></span></span>'
+)
+FAVICON_HTML = (
+    '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,'
+    f'%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 28 28\'%3E'
+    f'%3Crect x=\'1\' y=\'5\' width=\'15\' height=\'15\' rx=\'5\' fill=\'{BRAND_PEACH}\'/%3E'
+    f'%3Crect x=\'10\' y=\'9\' width=\'17\' height=\'17\' rx=\'5.5\' fill=\'{BRAND_ORANGE}\'/%3E'
+    '%3C/svg%3E">'
+)
+
 
 def close_popups(page):
     for text in ['닫기', '오늘 그만 보기']:
@@ -926,17 +950,18 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>홈쇼핑 프로모션 편성표</title>
+  <title>__SITE_NAME__ — 편성표</title>
+  __FAVICON__
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f6f9; color: #222; }
-    header { background: white; color: #1a1a2e; padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 #ebebf0; }
-    header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; }
-    .header-sub { font-size: 10px; color: #bbb; font-weight: 500; letter-spacing: 2px; margin-top: 3px; }
+    header { background: white; color: #1a1a2e; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 #ebebf0; }
+    header h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; }
+    .header-sub { font-size: 10px; color: #d7a98a; font-weight: 600; letter-spacing: 2px; margin: 4px 0 0 38px; }
     .top-nav { display: flex; gap: 8px; }
     .top-nav a { font-size: 13px; font-weight: 700; color: #888; text-decoration: none; padding: 7px 16px; border-radius: 20px; transition: all 0.15s; }
-    .top-nav a:hover { background: #f0f4ff; color: #1a1a2e; }
-    .top-nav a.active { background: #1a1a2e; color: white; }
+    .top-nav a:hover { background: #fdf1e9; color: #e2541f; }
+    .top-nav a.active { background: #e2541f; color: white; }
     .header-right { font-size: 11px; color: #888; }
     .header-bar { height: 3px; background: linear-gradient(to right, #9dc3e8 25%, #cdb3e6 25% 50%, #e8a9a9 50% 75%, #efc199 75%); position: sticky; top: 57px; z-index: 99; }
     .sched-wrap { padding: 20px; }
@@ -1008,7 +1033,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
 <body>
 <header>
   <div>
-    <h1>홈쇼핑 프로모션 편성표</h1>
+    <h1>__LOGO__</h1>
     <div class="header-sub">PROMOTION CALENDAR</div>
   </div>
   <nav class="top-nav">
@@ -1391,7 +1416,10 @@ def build_schedule_html(all_summaries):
     """기존 프로모션 요약 데이터를 주간 그리드(채널×날짜) 편성표로 렌더링."""
     html = (SCHEDULE_TEMPLATE
             .replace('__SUMMARIES__', json.dumps(all_summaries, ensure_ascii=False))
-            .replace('__TODAY__', TODAY_KEY))
+            .replace('__TODAY__', TODAY_KEY)
+            .replace('__SITE_NAME__', SITE_NAME)
+            .replace('__FAVICON__', FAVICON_HTML)
+            .replace('__LOGO__', LOGO_WORDMARK_HTML))
     with open(os.path.join(BASE_DIR, 'schedule.html'), 'w', encoding='utf-8') as f:
         f.write(html)
     print('편성표(schedule.html) 생성 완료')
@@ -1447,18 +1475,19 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>홈쇼핑 행사 요약 — {TODAY}</title>
+  <title>{SITE_NAME} — {TODAY}</title>
+  {FAVICON_HTML}
   <style>
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{ font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f6f9; color: #222; }}
-    header {{ background: white; color: #1a1a2e; padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 #ebebf0; }}
-    header h1 {{ font-size: 20px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.5px; line-height: 1.2; }}
-    .header-sub {{ font-size: 10px; color: #bbb; font-weight: 500; letter-spacing: 2px; margin-top: 3px; }}
+    header {{ background: white; color: #1a1a2e; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 #ebebf0; }}
+    header h1 {{ font-size: 21px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.5px; line-height: 1.2; }}
+    .header-sub {{ font-size: 10px; color: #d7a98a; font-weight: 600; letter-spacing: 2px; margin: 4px 0 0 38px; }}
     .header-right {{ display: flex; align-items: center; gap: 14px; }}
     .top-nav {{ display: flex; gap: 8px; }}
     .top-nav a {{ font-size: 13px; font-weight: 700; color: #888; text-decoration: none; padding: 7px 16px; border-radius: 20px; transition: all 0.15s; }}
-    .top-nav a:hover {{ background: #f0f4ff; color: #1a1a2e; }}
-    .top-nav a.active {{ background: #1a1a2e; color: white; }}
+    .top-nav a:hover {{ background: #fdf1e9; color: #e2541f; }}
+    .top-nav a.active {{ background: #e2541f; color: white; }}
     .header-date {{ font-size: 13px; color: #666; }}
     .live-dot {{ display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; }}
     .live-dot::before {{ content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 2px #bbf7d0; display: block; }}
@@ -1507,7 +1536,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
 <body>
 <header>
   <div>
-    <h1>홈쇼핑 행사 요약</h1>
+    <h1>{LOGO_WORDMARK_HTML}</h1>
     <div class="header-sub">HOMESHOPPING WEEKLY</div>
   </div>
   <nav class="top-nav">

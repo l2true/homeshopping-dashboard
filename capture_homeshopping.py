@@ -817,6 +817,16 @@ def consolidate_ongoing_events():
     for (brand, norm, _run), entries in event_groups.items():
         if len(entries) < 2:
             continue
+        # 매직딜데이·메가딜데이처럼 "오늘하루"만 진행되는 1일 반복 행사는 회차마다 혜택이 바뀔 수 있다
+        # (카드 %가 매일 바뀌는 것과 동일한 이유). 이런 행사는 period가 항상 단일 날짜(범위 아님)로
+        # 캡처되므로, 이 run에 날짜 범위(M/DD ~ M/DD) period가 하나도 없으면 통합하지 않고
+        # 각 날짜의 캡처값을 그대로 둔다.
+        has_range_period = any(
+            _re_module.search(r'\d{1,2}/\d{1,2}\s*~\s*\d{1,2}/\d{1,2}', period)
+            for _, _, period, _, _ in entries
+        )
+        if not has_range_period:
+            continue
         # 동일 혜택종류에 3가지 이상 서로 다른 내용이 있으면 날짜별 의도 변화 → skip
         # (카드는 매일 % 자체가 바뀔 수 있는 필드라 여기서 제외 — 별도로 날짜별 그대로 보존)
         from collections import defaultdict as _dd

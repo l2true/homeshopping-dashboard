@@ -991,127 +991,8 @@ def _s(brand_data, key, fallback=''):
     return brand_data.get(key, fallback)
 
 
-SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>__SITE_NAME__ — 편성표</title>
-  __FAVICON__
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f6f9; color: #222; }
-    header { background: white; color: #1a1a2e; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 #ebebf0; }
-    header h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; }
-    .header-sub { font-size: 10px; color: #d7a98a; font-weight: 600; letter-spacing: 2px; margin: 4px 0 0 38px; }
-    .top-nav { display: flex; gap: 8px; }
-    .top-nav a { font-size: 13px; font-weight: 700; color: #888; text-decoration: none; padding: 7px 16px; border-radius: 20px; transition: all 0.15s; }
-    .top-nav a:hover { background: #fdf1e9; color: #e2541f; }
-    .top-nav a.active { background: #e2541f; color: white; }
-    .header-right { font-size: 11px; color: #888; }
-    .header-bar { height: 3px; background: linear-gradient(to right, #9dc3e8 25%, #cdb3e6 25% 50%, #e8a9a9 50% 75%, #efc199 75%); position: sticky; top: 57px; z-index: 99; }
-    .sched-wrap { padding: 20px; }
-    .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
-    .filters .flabel { font-size: 12px; font-weight: 700; color: #999; margin-right: 4px; }
-    .fchip { font-size: 12px; font-weight: 700; color: #666; background: white; border: 1px solid #e0e4ff; padding: 7px 14px; border-radius: 20px; cursor: pointer; transition: all 0.15s; }
-    .fchip:hover { background: #f0f4ff; }
-    .fchip.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
-    .week-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 18px; position: relative; }
-    .week-nav button { background: white; border: 1px solid #e0e4ff; color: #444; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s; }
-    .week-nav button:hover { background: #f0f4ff; }
-    .week-nav #week-label { font-size: 16px; font-weight: 800; color: #1a1a2e; min-width: 150px; text-align: center; letter-spacing: 0.3px; cursor: pointer; background: white; border: 1px solid #e0e4ff; border-radius: 8px; padding: 8px 18px; }
-    .week-nav #week-label:hover { background: #f0f4ff; }
-    .cal-pop { display: none; position: absolute; top: 46px; left: 50%; transform: translateX(-50%); z-index: 200; background: white; border: 1px solid #e0e4ff; border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 280px; }
-    .cal-pop.open { display: block; }
-    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .cal-head button { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 10px; color: #555; }
-    .cal-head span { font-size: 13px; font-weight: 700; }
-    .cal-table { width: 100%; border-collapse: separate; border-spacing: 2px; }
-    .cal-table th { font-size: 10px; color: #aaa; font-weight: 600; padding: 2px 0; }
-    .cal-table td { text-align: center; padding: 6px 2px; border-radius: 7px; font-size: 13px; cursor: pointer; }
-    .cal-table td.has { color: #333; font-weight: 600; }
-    .cal-table td.no { color: #ccc; }
-    .cal-table td.inweek { background: #eef2ff; }
-    .cal-table td.today { outline: 2px solid #c62828; }
-    .cal-table td:hover { background: #1a1a2e; color: white; }
-    .gantt { background: white; border-radius: 14px; padding: 6px 10px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); overflow-x: auto; }
-    .g-row { display: flex; align-items: stretch; }
-    .ch-label { width: 92px; min-width: 92px; color: white; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; border-radius: 9px; margin: 4px 8px 4px 0; }
-    .ch-label.head { background: transparent; }
-    .g-head .track { display: flex; height: 44px; }
-    .g-head .dcol { flex: 1; text-align: center; border-left: 1px solid #f0f0f2; display: flex; flex-direction: column; justify-content: center; }
-    .g-head .dcol.today .d-date { color: #c62828; }
-    .g-head .dcol .d-date { font-size: 13px; font-weight: 800; color: #444; }
-    .g-head .dcol .d-dow { font-size: 10px; color: #aaa; margin-top: 2px; }
-    .track { position: relative; flex: 1; min-width: 420px; }
-    .gline { position: absolute; top: 0; bottom: 0; width: 1px; background: #f0f0f2; }
-    .gline.today { background: #fbcfc4; width: 2px; }
-    .bar { position: absolute; height: 26px; border-radius: 7px; font-size: 11.5px; font-weight: 700; line-height: 24px; padding: 0 9px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: default; transition: opacity 0.15s; }
-    .bar.cl { border-top-left-radius: 0; border-bottom-left-radius: 0; }
-    .bar.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-    .bar.dim { opacity: 0.13; }
-    .empty-row { font-size: 11px; color: #ccc; line-height: 34px; padding-left: 10px; }
-    /* 행사 카드 모달 */
-    .ev-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; justify-content: center; align-items: flex-start; padding: 40px 16px; overflow-y: auto; }
-    .ev-modal.open { display: flex; }
-    .ev-card { background: white; border-radius: 16px; max-width: 620px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.25); overflow: hidden; }
-    .ev-head { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 10px; }
-    .ev-logo { font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 8px; color: white; white-space: nowrap; }
-    .ev-name { font-size: 17px; font-weight: 800; flex: 1; color: #1a1a2e; }
-    .ev-period { font-size: 12px; color: #fff; background: #ff6b35; padding: 3px 11px; border-radius: 20px; white-space: nowrap; }
-    .ev-close { background: none; border: none; font-size: 24px; color: #999; cursor: pointer; line-height: 1; padding: 0 2px; }
-    .ev-body { display: flex; gap: 0; }
-    .ev-shot { width: 340px; min-width: 340px; border-right: 1px solid #f0f0f0; background: #fafafa; padding: 12px; max-height: 72vh; overflow-y: auto; }
-    .ev-shot img { width: 100%; border-radius: 8px; border: 1px solid #eee; display: block; cursor: zoom-in; }
-    .ev-shot .cap { font-size: 11px; color: #999; text-align: center; margin-bottom: 8px; }
-    .ev-benefits { width: 220px; min-width: 180px; padding: 16px 18px; display: flex; flex-direction: column; gap: 9px; }
-    /* 캡처본 크게 보기 */
-    .img-zoom { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1100; justify-content: center; align-items: flex-start; padding: 24px; overflow-y: auto; cursor: zoom-out; }
-    .img-zoom.open { display: flex; }
-    .img-zoom img { max-width: 440px; width: 100%; height: auto; border-radius: 8px; margin: auto; }
-    .img-zoom .zoom-close { position: fixed; top: 14px; right: 20px; color: white; font-size: 34px; cursor: pointer; z-index: 1101; }
-    .ev-bf { font-size: 13px; line-height: 1.5; color: #444; }
-    .ev-bf .bt { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; margin-right: 7px; }
-    @media (max-width: 760px) { .sched-wrap { padding: 10px; } .ch-label { width: 64px; min-width: 64px; font-size: 11px; }
-      .ev-body { flex-direction: column; } .ev-shot { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid #f0f0f0; max-height: 360px; } .ev-benefits { width: 100%; min-width: 0; } }
-  </style>
-</head>
-<body>
-<header>
-  <div>
-    <h1>__LOGO__</h1>
-    <div class="header-sub">PROMOTION CALENDAR</div>
-  </div>
-  <nav class="top-nav">
-    <a href="index.html">행사 요약</a>
-    <a href="schedule.html" class="active">편성표</a>
-  </nav>
-  <div class="header-right">자동수집</div>
-</header>
-<div class="header-bar"></div>
-<div class="sched-wrap">
-  <div class="filters" id="filters">
-    <span class="flabel">혜택 필터</span>
-  </div>
-  <div class="week-nav">
-    <button onclick="navWeek(-1)">◀ 지난주</button>
-    <span id="week-label" onclick="toggleCal(event)"></span>
-    <button onclick="navWeek(1)">다음주 ▶</button>
-    <button onclick="goToday()">오늘</button>
-    <div class="cal-pop" id="cal-pop"></div>
-  </div>
-  <div class="gantt" id="grid"></div>
-</div>
-<div class="ev-modal" id="ev-modal" onclick="if(event.target===this)closeCard()">
-  <div class="ev-card" id="ev-card"></div>
-</div>
-<div class="img-zoom" id="img-zoom" onclick="closeZoom()">
-  <span class="zoom-close" onclick="closeZoom()">&times;</span>
-  <img id="img-zoom-img" src="" alt="캡처본 크게보기">
-</div>
-<script>
-  const summaries = __SUMMARIES__;
-  const TODAY = "__TODAY__";
+# 편성표/검색 페이지가 공유하는 이벤트 병합 엔진 (JS). 두 페이지가 항상 동일한 로직으로 events를 계산하도록 한 곳에서만 정의한다.
+EVENT_ENGINE_JS = r'''
   const DAY = 86400000;
   const channels = [
     {key:'gs',      label:'GS SHOP',   color:'#3b82c4', soft:'#e8f1fb'},
@@ -1252,6 +1133,133 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
       events[ch.key] = merged;
     });
   })();
+'''
+
+SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>__SITE_NAME__ — 편성표</title>
+  __FAVICON__
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f6f9; color: #222; }
+    header { background: white; color: #1a1a2e; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 #ebebf0; }
+    header h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; }
+    .header-sub { font-size: 10px; color: #d7a98a; font-weight: 600; letter-spacing: 2px; margin: 4px 0 0 38px; }
+    .top-nav { display: flex; gap: 8px; }
+    .top-nav a { font-size: 13px; font-weight: 700; color: #888; text-decoration: none; padding: 7px 16px; border-radius: 20px; transition: all 0.15s; }
+    .top-nav a:hover { background: #fdf1e9; color: #e2541f; }
+    .top-nav a.active { background: #e2541f; color: white; }
+    .header-right { font-size: 11px; color: #888; }
+    .header-bar { height: 3px; background: linear-gradient(to right, #9dc3e8 25%, #cdb3e6 25% 50%, #e8a9a9 50% 75%, #efc199 75%); position: sticky; top: 57px; z-index: 99; }
+    .sched-wrap { padding: 20px; }
+    .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .filters .flabel { font-size: 12px; font-weight: 700; color: #999; margin-right: 4px; }
+    .fchip { font-size: 12px; font-weight: 700; color: #666; background: white; border: 1px solid #e0e4ff; padding: 7px 14px; border-radius: 20px; cursor: pointer; transition: all 0.15s; }
+    .fchip:hover { background: #f0f4ff; }
+    .fchip.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+    .week-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 18px; position: relative; }
+    .week-nav button { background: white; border: 1px solid #e0e4ff; color: #444; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+    .week-nav button:hover { background: #f0f4ff; }
+    .week-nav #week-label { font-size: 16px; font-weight: 800; color: #1a1a2e; min-width: 150px; text-align: center; letter-spacing: 0.3px; cursor: pointer; background: white; border: 1px solid #e0e4ff; border-radius: 8px; padding: 8px 18px; }
+    .week-nav #week-label:hover { background: #f0f4ff; }
+    .cal-pop { display: none; position: absolute; top: 46px; left: 50%; transform: translateX(-50%); z-index: 200; background: white; border: 1px solid #e0e4ff; border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 280px; }
+    .cal-pop.open { display: block; }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .cal-head button { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 10px; color: #555; }
+    .cal-head span { font-size: 13px; font-weight: 700; }
+    .cal-table { width: 100%; border-collapse: separate; border-spacing: 2px; }
+    .cal-table th { font-size: 10px; color: #aaa; font-weight: 600; padding: 2px 0; }
+    .cal-table td { text-align: center; padding: 6px 2px; border-radius: 7px; font-size: 13px; cursor: pointer; }
+    .cal-table td.has { color: #333; font-weight: 600; }
+    .cal-table td.no { color: #ccc; }
+    .cal-table td.inweek { background: #eef2ff; }
+    .cal-table td.today { outline: 2px solid #c62828; }
+    .cal-table td:hover { background: #1a1a2e; color: white; }
+    .gantt { background: white; border-radius: 14px; padding: 6px 10px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); overflow-x: auto; }
+    .g-row { display: flex; align-items: stretch; }
+    .ch-label { width: 92px; min-width: 92px; color: white; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; border-radius: 9px; margin: 4px 8px 4px 0; }
+    .ch-label.head { background: transparent; }
+    .g-head .track { display: flex; height: 44px; }
+    .g-head .dcol { flex: 1; text-align: center; border-left: 1px solid #f0f0f2; display: flex; flex-direction: column; justify-content: center; }
+    .g-head .dcol.today .d-date { color: #c62828; }
+    .g-head .dcol .d-date { font-size: 13px; font-weight: 800; color: #444; }
+    .g-head .dcol .d-dow { font-size: 10px; color: #aaa; margin-top: 2px; }
+    .track { position: relative; flex: 1; min-width: 420px; }
+    .gline { position: absolute; top: 0; bottom: 0; width: 1px; background: #f0f0f2; }
+    .gline.today { background: #fbcfc4; width: 2px; }
+    .bar { position: absolute; height: 26px; border-radius: 7px; font-size: 11.5px; font-weight: 700; line-height: 24px; padding: 0 9px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: default; transition: opacity 0.15s; }
+    .bar.cl { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .bar.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    .bar.dim { opacity: 0.13; }
+    .bar.pulse { animation: barPulse 1.1s ease-out 2; box-shadow: 0 0 0 3px #e2541f; }
+    @keyframes barPulse { 0%{ box-shadow:0 0 0 3px #e2541f99; } 50%{ box-shadow:0 0 0 6px #e2541f22; } 100%{ box-shadow:0 0 0 3px #e2541f99; } }
+    .empty-row { font-size: 11px; color: #ccc; line-height: 34px; padding-left: 10px; }
+    /* 행사 카드 모달 */
+    .ev-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; justify-content: center; align-items: flex-start; padding: 40px 16px; overflow-y: auto; }
+    .ev-modal.open { display: flex; }
+    .ev-card { background: white; border-radius: 16px; max-width: 620px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.25); overflow: hidden; }
+    .ev-head { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 10px; }
+    .ev-logo { font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 8px; color: white; white-space: nowrap; }
+    .ev-name { font-size: 17px; font-weight: 800; flex: 1; color: #1a1a2e; }
+    .ev-period { font-size: 12px; color: #fff; background: #ff6b35; padding: 3px 11px; border-radius: 20px; white-space: nowrap; }
+    .ev-close { background: none; border: none; font-size: 24px; color: #999; cursor: pointer; line-height: 1; padding: 0 2px; }
+    .ev-body { display: flex; gap: 0; }
+    .ev-shot { width: 340px; min-width: 340px; border-right: 1px solid #f0f0f0; background: #fafafa; padding: 12px; max-height: 72vh; overflow-y: auto; }
+    .ev-shot img { width: 100%; border-radius: 8px; border: 1px solid #eee; display: block; cursor: zoom-in; }
+    .ev-shot .cap { font-size: 11px; color: #999; text-align: center; margin-bottom: 8px; }
+    .ev-benefits { width: 220px; min-width: 180px; padding: 16px 18px; display: flex; flex-direction: column; gap: 9px; }
+    /* 캡처본 크게 보기 */
+    .img-zoom { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1100; justify-content: center; align-items: flex-start; padding: 24px; overflow-y: auto; cursor: zoom-out; }
+    .img-zoom.open { display: flex; }
+    .img-zoom img { max-width: 440px; width: 100%; height: auto; border-radius: 8px; margin: auto; }
+    .img-zoom .zoom-close { position: fixed; top: 14px; right: 20px; color: white; font-size: 34px; cursor: pointer; z-index: 1101; }
+    .ev-bf { font-size: 13px; line-height: 1.5; color: #444; }
+    .ev-bf .bt { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; margin-right: 7px; }
+    @media (max-width: 760px) { .sched-wrap { padding: 10px; } .ch-label { width: 64px; min-width: 64px; font-size: 11px; }
+      .ev-body { flex-direction: column; } .ev-shot { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid #f0f0f0; max-height: 360px; } .ev-benefits { width: 100%; min-width: 0; } }
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>__LOGO__</h1>
+    <div class="header-sub">PROMOTION CALENDAR</div>
+  </div>
+  <nav class="top-nav">
+    <a href="index.html">행사 요약</a>
+    <a href="schedule.html" class="active">편성표</a>
+    <a href="search.html">검색</a>
+  </nav>
+  <div class="header-right">자동수집</div>
+</header>
+<div class="header-bar"></div>
+<div class="sched-wrap">
+  <div class="filters" id="filters">
+    <span class="flabel">혜택 필터</span>
+  </div>
+  <div class="week-nav">
+    <button onclick="navWeek(-1)">◀ 지난주</button>
+    <span id="week-label" onclick="toggleCal(event)"></span>
+    <button onclick="navWeek(1)">다음주 ▶</button>
+    <button onclick="goToday()">오늘</button>
+    <div class="cal-pop" id="cal-pop"></div>
+  </div>
+  <div class="gantt" id="grid"></div>
+</div>
+<div class="ev-modal" id="ev-modal" onclick="if(event.target===this)closeCard()">
+  <div class="ev-card" id="ev-card"></div>
+</div>
+<div class="img-zoom" id="img-zoom" onclick="closeZoom()">
+  <span class="zoom-close" onclick="closeZoom()">&times;</span>
+  <img id="img-zoom-img" src="" alt="캡처본 크게보기">
+</div>
+<script>
+  const summaries = __SUMMARIES__;
+  const TODAY = "__TODAY__";
+  __EVENT_ENGINE__
 
   // 필터
   let _filter = new Set();
@@ -1438,7 +1446,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
         const contL = ev._start<wStart, contR = ev._end>wEnd;
         const top = ev._lane*30 + 3;
         const tip = `${ev.name}${ev.period?' | '+ev.period:''}${ev.types.size?' | '+[...ev.types].join(', '):''} (클릭 시 첫날 카드)`;
-        bars += `<div class="bar${dimmed(ev)?' dim':''}${contL?' cl':''}${contR?' cr':''}" style="left:${left}%;width:${width}%;top:${top}px;background:${ch.soft};color:${ch.color};border:1px solid ${ch.color}33;cursor:pointer" title="${tip}" onclick="openCard('${ev.ch}','${ev.firstDate}')">${ev.name}</div>`;
+        bars += `<div class="bar${dimmed(ev)?' dim':''}${contL?' cl':''}${contR?' cr':''}" data-ch="${ev.ch}" data-date="${ev.firstDate}" style="left:${left}%;width:${width}%;top:${top}px;background:${ch.soft};color:${ch.color};border:1px solid ${ch.color}33;cursor:pointer" title="${tip}" onclick="openCard('${ev.ch}','${ev.firstDate}')">${ev.name}</div>`;
       });
       if(evs.length===0) bars = '<div class="empty-row">—</div>';
       rows += `<div class="g-row"><div class="ch-label" style="background:${ch.soft};color:${ch.color}">${ch.label}</div><div class="track" style="height:${rowH}px">${lines}${bars}</div></div>`;
@@ -1448,10 +1456,281 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
 
   buildFilters();
   (function init(){
+    const qs = new URLSearchParams(location.search);
+    const dCh = qs.get('ch'), dDate = qs.get('date');
+    if(dCh && dDate){
+      _weekMon = mondayOf(dDate);
+      render();
+      const bar = document.querySelector(`.bar[data-ch="${dCh}"][data-date="${dDate}"]`);
+      if(bar){ bar.classList.add('pulse'); bar.scrollIntoView({block:'center', behavior:'smooth'}); }
+      openCard(dCh, dDate);
+      return;
+    }
     const dates = Object.keys(summaries).sort();
     _weekMon = mondayOf(dates.length ? dates[dates.length-1] : TODAY);
     render();
   })();
+</script>
+</body>
+</html>
+'''
+
+
+SEARCH_TEMPLATE = r'''<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>__SITE_NAME__ — 검색</title>
+  __FAVICON__
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f6f9; color: #222; }
+    header { background: white; color: #1a1a2e; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 #ebebf0; }
+    header h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; }
+    .header-sub { font-size: 10px; color: #d7a98a; font-weight: 600; letter-spacing: 2px; margin: 4px 0 0 38px; }
+    .top-nav { display: flex; gap: 8px; }
+    .top-nav a { font-size: 13px; font-weight: 700; color: #888; text-decoration: none; padding: 7px 16px; border-radius: 20px; transition: all 0.15s; }
+    .top-nav a:hover { background: #fdf1e9; color: #e2541f; }
+    .top-nav a.active { background: #e2541f; color: white; }
+    .header-right { font-size: 11px; color: #888; }
+    .header-bar { height: 3px; background: linear-gradient(to right, #9dc3e8 25%, #cdb3e6 25% 50%, #e8a9a9 50% 75%, #efc199 75%); position: sticky; top: 57px; z-index: 99; }
+    .wrap { padding: 20px 24px 60px; max-width: 1080px; margin: 0 auto; }
+    .panel { background: white; border-radius: 14px; padding: 18px 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 18px; }
+    .prow { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; }
+    .prow:last-child { margin-bottom: 0; }
+    .plabel { font-size: 12px; font-weight: 700; color: #999; width: 64px; min-width: 64px; padding-top: 9px; }
+    .pbody { flex: 1; min-width: 200px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    #q { flex: 1; min-width: 220px; font-size: 14px; padding: 9px 14px; border: 1px solid #e0e4ff; border-radius: 8px; outline: none; }
+    #q:focus { border-color: #e2541f; }
+    .chip { font-size: 12.5px; font-weight: 700; color: #666; background: #f6f7fb; border: 1px solid #e6e8f2; padding: 6px 13px; border-radius: 20px; cursor: pointer; transition: all 0.15s; user-select: none; }
+    .chip:hover { background: #fdf1e9; }
+    .chip.active { color: white; border-color: transparent; }
+    .chip[data-ch="gs"].active { background: #3b82c4; }
+    .chip[data-ch="cj"].active { background: #9b6fc0; }
+    .chip[data-ch="lotte"].active { background: #d05a5a; }
+    .chip[data-ch="hyundai"].active { background: #e08a4a; }
+    .chip[data-bf].active { background: #1a1a2e; }
+    .date-range { display: flex; align-items: center; gap: 8px; }
+    .date-range input[type=date] { font-size: 13px; padding: 7px 10px; border: 1px solid #e0e4ff; border-radius: 8px; color: #444; }
+    .preset-btn { font-size: 12px; font-weight: 600; color: #666; background: white; border: 1px solid #e0e4ff; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+    .preset-btn:hover { background: #f0f4ff; }
+    .preset-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+    #reset-btn { font-size: 12px; font-weight: 700; color: #e2541f; background: none; border: none; cursor: pointer; padding: 6px 4px; }
+    .result-meta { font-size: 12px; color: #999; margin: 4px 2px 10px; }
+    .results { display: flex; flex-direction: column; gap: 10px; }
+    .rcard { background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 14px 16px; display: flex; gap: 14px; align-items: center; cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
+    .rcard:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.09); }
+    .rcard .rshot { width: 56px; height: 56px; min-width: 56px; border-radius: 8px; object-fit: cover; background: #f0f0f2; border: 1px solid #eee; }
+    .rcard .rbody { flex: 1; min-width: 0; }
+    .rcard .rtop { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
+    .rlogo { font-size: 11px; font-weight: 800; color: white; padding: 3px 9px; border-radius: 6px; white-space: nowrap; }
+    .rname { font-size: 14.5px; font-weight: 800; color: #1a1a2e; }
+    .rperiod { font-size: 11px; color: #fff; background: #ff6b35; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+    .rtags { display: flex; gap: 5px; flex-wrap: wrap; }
+    .rtag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 5px; }
+    .empty { text-align: center; color: #aaa; font-size: 14px; padding: 60px 20px; }
+    @media (max-width: 640px) {
+      .wrap { padding: 12px; }
+      .prow { flex-direction: column; gap: 6px; }
+      .plabel { width: auto; padding-top: 0; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>__LOGO__</h1>
+    <div class="header-sub">SEARCH EVENTS</div>
+  </div>
+  <nav class="top-nav">
+    <a href="index.html">행사 요약</a>
+    <a href="schedule.html">편성표</a>
+    <a href="search.html" class="active">검색</a>
+  </nav>
+  <div class="header-right">자동수집</div>
+</header>
+<div class="header-bar"></div>
+<div class="wrap">
+  <div class="panel">
+    <div class="prow">
+      <div class="plabel">행사명</div>
+      <div class="pbody"><input id="q" type="text" placeholder="예: 베이비 키즈, 썸머세일 ..."></div>
+    </div>
+    <div class="prow">
+      <div class="plabel">회사별</div>
+      <div class="pbody" id="company-filters"></div>
+    </div>
+    <div class="prow">
+      <div class="plabel">혜택별</div>
+      <div class="pbody" id="benefit-filters"></div>
+    </div>
+    <div class="prow">
+      <div class="plabel">기간별</div>
+      <div class="pbody">
+        <div class="date-range">
+          <input type="date" id="from-date"> ~ <input type="date" id="to-date">
+        </div>
+        <button class="preset-btn" data-preset="1m">최근 1개월</button>
+        <button class="preset-btn" data-preset="3m">최근 3개월</button>
+        <button class="preset-btn active" data-preset="all">전체</button>
+        <button id="reset-btn">전체 초기화</button>
+      </div>
+    </div>
+  </div>
+  <div class="result-meta" id="result-meta"></div>
+  <div class="results" id="results"></div>
+</div>
+<script>
+  const summaries = __SUMMARIES__;
+  const TODAY = "__TODAY__";
+  __EVENT_ENGINE__
+
+  // 검색어 정규화 매칭: 공백 무시 + 소문자 + 부분 포함
+  function normQ(s){ return (s||'').replace(/\s+/g,'').toLowerCase(); }
+  function matchQuery(query, eventName){
+    const nq = normQ(query);
+    if(!nq) return true;
+    return normQ(eventName).includes(nq);
+  }
+
+  // 채널별 events → 하나의 리스트로 평탄화
+  const allEvents = [];
+  channels.forEach(ch => {
+    (events[ch.key] || []).forEach(ev => allEvents.push(ev));
+  });
+  allEvents.sort((a,b) => b._start - a._start);
+
+  // 상태 (URL 쿼리파라미터와 동기화)
+  const state = { q: '', ch: new Set(), bf: new Set(), from: '', to: '', preset: 'all' };
+
+  function loadFromURL(){
+    const qs = new URLSearchParams(location.search);
+    state.q = qs.get('q') || '';
+    (qs.get('ch')||'').split(',').filter(Boolean).forEach(c => state.ch.add(c));
+    (qs.get('bf')||'').split(',').filter(Boolean).forEach(b => state.bf.add(b));
+    state.from = qs.get('from') || '';
+    state.to = qs.get('to') || '';
+    if(state.from || state.to) state.preset = 'custom';
+  }
+  function syncURL(){
+    const qs = new URLSearchParams();
+    if(state.q) qs.set('q', state.q);
+    if(state.ch.size) qs.set('ch', [...state.ch].join(','));
+    if(state.bf.size) qs.set('bf', [...state.bf].join(','));
+    if(state.from) qs.set('from', state.from);
+    if(state.to) qs.set('to', state.to);
+    const url = location.pathname + (qs.toString() ? '?' + qs.toString() : '');
+    history.replaceState(null, '', url);
+  }
+
+  function buildCompanyFilters(){
+    const box = document.getElementById('company-filters');
+    box.innerHTML = channels.map(ch =>
+      `<span class="chip${state.ch.has(ch.key)?' active':''}" data-ch="${ch.key}" onclick="toggleCh('${ch.key}')">${ch.label}</span>`
+    ).join('');
+  }
+  function buildBenefitFilters(){
+    const box = document.getElementById('benefit-filters');
+    box.innerHTML = TYPES.map(t =>
+      `<span class="chip${state.bf.has(t)?' active':''}" data-bf="${t}" onclick="toggleBf('${t}')" style="${state.bf.has(t)?`background:${TYPE_COLORS[t]}`:''}">${t}</span>`
+    ).join('');
+  }
+  function toggleCh(c){ state.ch.has(c) ? state.ch.delete(c) : state.ch.add(c); buildCompanyFilters(); runSearch(); }
+  function toggleBf(t){ state.bf.has(t) ? state.bf.delete(t) : state.bf.add(t); buildBenefitFilters(); runSearch(); }
+
+  function setPreset(p){
+    state.preset = p;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset===p));
+    if(p === 'all'){ state.from=''; state.to=''; }
+    else if(p === '1m' || p === '3m'){
+      const days = p === '1m' ? 30 : 90;
+      const t = parse(TODAY);
+      const f = new Date(t); f.setDate(f.getDate() - days);
+      state.from = toStr(f); state.to = TODAY;
+    }
+    document.getElementById('from-date').value = state.from;
+    document.getElementById('to-date').value = state.to;
+    runSearch();
+  }
+
+  function passFilters(ev){
+    if(!matchQuery(state.q, ev.name)) return false;
+    if(state.ch.size && !state.ch.has(ev.ch)) return false;
+    if(state.bf.size){
+      let ok = false;
+      for(const t of state.bf) if(ev.types.has(t)) { ok = true; break; }
+      if(!ok) return false;
+    }
+    if(state.from){ const f = parse(state.from); if(ev._end < f) return false; }
+    if(state.to){ const t = parse(state.to); if(ev._start > t) return false; }
+    return true;
+  }
+
+  function fmtPeriod(ev){
+    const f = d => `${d.getMonth()+1}/${d.getDate()}`;
+    if(ev._start.getTime() === ev._end.getTime()) return f(ev._start);
+    return `${f(ev._start)} ~ ${f(ev._end)}`;
+  }
+
+  function renderResults(){
+    const list = allEvents.filter(passFilters);
+    const meta = document.getElementById('result-meta');
+    meta.textContent = `총 ${list.length}건`;
+    const box = document.getElementById('results');
+    if(!list.length){
+      box.innerHTML = '<div class="empty">조건에 맞는 행사가 없습니다</div>';
+      return;
+    }
+    box.innerHTML = list.map(ev => {
+      const ch = channels.find(c => c.key === ev.ch);
+      const tags = [...ev.types].map(t => `<span class="rtag" style="background:${TYPE_COLORS[t]}22;color:${TYPE_COLORS[t]}">${t}</span>`).join('');
+      const shot = `captures/${ev.firstDate}/${ev.ch}_next_tab_full.png`;
+      return `<div class="rcard" onclick="goToSchedule('${ev.ch}','${ev.firstDate}')">
+        <img class="rshot" src="${shot}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="rbody">
+          <div class="rtop">
+            <span class="rlogo" style="background:${ch.color}">${ch.label}</span>
+            <span class="rname">${ev.name}</span>
+            <span class="rperiod">${fmtPeriod(ev)}</span>
+          </div>
+          <div class="rtags">${tags}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function goToSchedule(ch, date){
+    location.href = `schedule.html?ch=${ch}&date=${date}`;
+  }
+
+  function runSearch(){
+    state.q = document.getElementById('q').value;
+    syncURL();
+    renderResults();
+  }
+
+  document.getElementById('q').addEventListener('input', runSearch);
+  document.getElementById('from-date').addEventListener('change', e => { state.from = e.target.value; state.preset='custom'; document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active')); runSearch(); });
+  document.getElementById('to-date').addEventListener('change', e => { state.to = e.target.value; state.preset='custom'; document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active')); runSearch(); });
+  document.querySelectorAll('.preset-btn').forEach(b => b.addEventListener('click', () => setPreset(b.dataset.preset)));
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    state.q=''; state.ch.clear(); state.bf.clear(); state.from=''; state.to=''; state.preset='all';
+    document.getElementById('q').value = '';
+    document.getElementById('from-date').value = '';
+    document.getElementById('to-date').value = '';
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset==='all'));
+    buildCompanyFilters(); buildBenefitFilters(); runSearch();
+  });
+
+  loadFromURL();
+  document.getElementById('q').value = state.q;
+  document.getElementById('from-date').value = state.from;
+  document.getElementById('to-date').value = state.to;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset===state.preset));
+  buildCompanyFilters();
+  buildBenefitFilters();
+  renderResults();
 </script>
 </body>
 </html>
@@ -1465,10 +1744,25 @@ def build_schedule_html(all_summaries):
             .replace('__TODAY__', TODAY_KEY)
             .replace('__SITE_NAME__', SITE_NAME)
             .replace('__FAVICON__', FAVICON_HTML)
-            .replace('__LOGO__', LOGO_WORDMARK_HTML))
+            .replace('__LOGO__', LOGO_WORDMARK_HTML)
+            .replace('__EVENT_ENGINE__', EVENT_ENGINE_JS))
     with open(os.path.join(BASE_DIR, 'schedule.html'), 'w', encoding='utf-8') as f:
         f.write(html)
     print('편성표(schedule.html) 생성 완료')
+
+
+def build_search_html(all_summaries):
+    """전체 기간 대상 행사 검색 화면(search.html) 생성. 편성표와 동일한 이벤트 병합 엔진을 공유한다."""
+    html = (SEARCH_TEMPLATE
+            .replace('__SUMMARIES__', json.dumps(all_summaries, ensure_ascii=False))
+            .replace('__TODAY__', TODAY_KEY)
+            .replace('__SITE_NAME__', SITE_NAME)
+            .replace('__FAVICON__', FAVICON_HTML)
+            .replace('__LOGO__', LOGO_WORDMARK_HTML)
+            .replace('__EVENT_ENGINE__', EVENT_ENGINE_JS))
+    with open(os.path.join(BASE_DIR, 'search.html'), 'w', encoding='utf-8') as f:
+        f.write(html)
+    print('검색(search.html) 생성 완료')
 
 
 def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
@@ -1588,6 +1882,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
   <nav class="top-nav">
     <a href="index.html" class="active">행사 요약</a>
     <a href="schedule.html">편성표</a>
+    <a href="search.html">검색</a>
   </nav>
   <div class="header-right">
     <span class="header-date" id="header-date">기준일: {TODAY_KEY}</span>
@@ -1989,6 +2284,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     print(f'HTML 업데이트 완료: {TODAY}')
 
     build_schedule_html(all_summaries)
+    build_search_html(all_summaries)
 
 
 def git_push(archive_date_dir):
@@ -1996,7 +2292,7 @@ def git_push(archive_date_dir):
     import subprocess
     rel = os.path.relpath(archive_date_dir, BASE_DIR).replace('\\', '/')
     candidates = [
-        'index.html', 'schedule.html', 'promo_history.json',
+        'index.html', 'schedule.html', 'search.html', 'promo_history.json',
         f'{rel}/hyundai_next_tab_full.png', f'{rel}/hyundai_banner.png', f'{rel}/hyundai_page_text.txt',
         f'{rel}/gs_next_tab_full.png',      f'{rel}/gs_banner.png',      f'{rel}/gs_page_text.txt',
         f'{rel}/cj_next_tab_full.png',      f'{rel}/cj_banner.png',      f'{rel}/cj_page_text.txt',

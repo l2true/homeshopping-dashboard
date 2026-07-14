@@ -546,6 +546,27 @@ HYUNDAI_PROMPT_EXTRA = (
 )
 
 
+def _find_prev_valid_summary(archive_date_dir, brand, max_back=10):
+    """archive_date_dir 이전 날짜들 중 해당 브랜드의 유효한(name이 있는) summary를 최근 순으로 찾아 반환."""
+    cur_date = os.path.basename(archive_date_dir)
+    dates = sorted(d for d in
+                   (os.path.basename(p) for p in glob.glob(os.path.join(ARCHIVE_DIR, '????-??-??')))
+                   if d < cur_date)
+    for d in reversed(dates[-max_back:] if max_back else dates):
+        p = os.path.join(ARCHIVE_DIR, d, 'summary.json')
+        if not os.path.exists(p):
+            continue
+        try:
+            with open(p, encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        s = data.get(brand)
+        if s and s.get('name', '').strip() and s.get('name') != '요약 생성 실패':
+            return dict(s)
+    return None
+
+
 def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
     """캡처 이미지를 claude CLI로 분석해 행사 요약 생성"""
     summaries = {}
@@ -585,6 +606,8 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '- 상단 탭 메뉴에 표시된 숫자 배지(예: "20%페이백", "10%적립")는 그 탭이 현재 열려있는 탭의 것이 아니라 '
             '옆에 있는 다른 탭(다른 행사)의 배지일 수 있습니다. 탭 배지 숫자만 보고 혜택을 적지 말고, '
             '반드시 현재 열려있는 탭의 배너 본문(예: "3시간마다 열리는 다이나믹딜", "반값 돌려받기 찬스 50% 페이백" 같은 실제 문구)에서 혜택을 확인하세요.\n\n'
+            '반드시 아래 형식으로만 출력하세요. 서론·확인 문구·설명(예: "확인했습니다", "찾았습니다" 등) 없이 '
+            '"기간:"으로 바로 시작하세요. 이전 데이터를 참고했다는 코멘트도 쓰지 마세요.\n\n'
             '형식:\n'
             '기간: (행사 기간)\n'
             '프로모션명: (메인 행사명 하나만, 서브 행사명 나열 금지. 페이지에 명확한 행사명이 있으면 그대로 사용, 없으면 배너 로고 텍스트를 활용)\n'
@@ -620,6 +643,17 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             # 현대: 혜택(body)이 없으면 단순 방송 홍보 → 해당없음 강제 처리
             if brand == 'hyundai' and not result.get('body', '').strip():
                 result = {'period': '', 'name': '해당없음', 'body': ''}
+            # AI가 "기간:/프로모션명:/혜택:" 형식을 안 지키고 산문으로 답하면
+            # name이 비어있는 채로 저장되어 화면이 깨진다 → 형식 검증 실패 시
+            # 직전 유효한 날짜의 데이터를 그대로 이어받는다 (빈 값 저장 금지).
+            if not result.get('name', '').strip():
+                prev = _find_prev_valid_summary(archive_date_dir, brand)
+                if prev:
+                    result = prev
+                    print(f'{brand} 형식 오류 → 직전 유효 데이터로 대체: {prev.get("name")}')
+                else:
+                    result = {'period': '', 'name': '', 'body': '요약 생성 실패'}
+                    print(f'{brand} 형식 오류, 직전 데이터 없음 → 실패 처리')
             summaries[brand] = result
             print(f'{brand} 요약 완료')
         except Exception as e:

@@ -346,7 +346,7 @@ def run_gs(browser, archive_dir):
     return tab_name
 
 
-CJ_SKIP_TABS = ['라이브쇼특가', '매일특가']        # CJ: 홈 바로 옆이 이 탭이면 그 다음 탭으로 이동
+CJ_SKIP_TABS = ['라이브쇼특가', '매일특가', '스페셜픽']  # CJ: 홈 바로 옆이 이 탭이면 그 다음 탭으로 이동
 HYUNDAI_SKIP_TABS = ['오감쇼']                    # 현대: 방송 프로그램 탭 스킵 → 피드백 시 추가
 
 def run_cj(browser, archive_dir):

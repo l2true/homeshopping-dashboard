@@ -164,7 +164,13 @@ def scroll_to_load(page, steps=6, delay_ms=300):
     page.wait_for_timeout(300)
 
 
-def capture_full(page, path):
+def capture_full(page, path, max_height=9000):
+    """전체 페이지 캡처. 하단 무한스크롤 상품피드 때문에 스크롤 높이가
+    수만~수십만 px까지 부풀 수 있는데, full_page=True로 그대로 캡처하면
+    AI 전송 시 이미지가 극단적으로 축소되어 상단 혜택 배너 글자가 뭉개져
+    통째로 못 읽는 사고가 난다. 그래서 항상 높이를 max_height로 상한선을
+    두고 뷰포트 캡처한다 (배너·혜택 섹션은 보통 상위 수천px 안에 있음).
+    """
     # document.fonts.ready 오버라이드 → 폰트 로딩 대기로 인한 타임아웃 방지
     try:
         page.evaluate("""
@@ -180,18 +186,26 @@ def capture_full(page, path):
     except Exception:
         pass
     try:
-        page.screenshot(path=path, full_page=True, timeout=60000, animations='disabled')
-    except Exception:
-        # fallback: 실제 콘텐츠 높이만큼 뷰포트 조정 후 캡처
         total_h = page.evaluate("""
             () => Math.max(
                 document.body.scrollHeight,
                 document.documentElement.scrollHeight
             )
         """) or 6000
-        page.set_viewport_size({'width': VIEWPORT['width'], 'height': min(int(total_h), 15000)})
+    except Exception:
+        total_h = 6000
+    capped_h = min(int(total_h), max_height)
+    try:
+        page.set_viewport_size({'width': VIEWPORT['width'], 'height': capped_h})
         page.wait_for_timeout(300)
-        page.screenshot(path=path, full_page=False, timeout=30000, animations='disabled')
+        page.screenshot(path=path, full_page=False, timeout=60000, animations='disabled')
+    except Exception:
+        # fallback: 예외 시 기존 방식(전체 페이지)으로 한 번 더 시도
+        try:
+            page.screenshot(path=path, full_page=True, timeout=30000, animations='disabled')
+        except Exception:
+            pass
+    finally:
         page.set_viewport_size(VIEWPORT)
     # 하단 흰 여백 제거 (scrollHeight 과대산정으로 인한 빈 공간 크롭)
     _crop_white_bottom(path)

@@ -874,12 +874,17 @@ def consolidate_ongoing_events():
         if not benefit_map:
             continue
 
-        # 통합 body 생성 (카드 제외) — 이미 묶인 요약(·, 등 포함)을 우선 선택, 없으면 가장 짧은 것
+        # 통합 body 생성 (카드 제외) — 이미 묶인 요약(·, 등 포함)을 우선 선택,
+        # 그 다음 "최대"가 포함된 표현을 우선(다른 날짜의 AI가 물결표(~)를 놓쳐 "최대"를
+        # 빠뜨린 짧은 문구가 이겨서 정확한 정보가 계속 깎여나가는 것을 방지), 없으면 가장 짧은 것
         lines = ['혜택:']
         for btype, details in benefit_map.items():
             aggregated = [d for d in details if '·' in d or ',' in d or d.endswith('등)') or d.endswith('등')]
+            has_max = [d for d in details if '최대' in d]
             if aggregated:
                 best = max(aggregated, key=len)  # 묶인 것 중 가장 정보 많은 것
+            elif has_max:
+                best = max(has_max, key=len)     # "최대"가 있는 표현이 더 정확하므로 우선
             else:
                 best = min(details, key=len)     # 아니면 가장 간결한 것
             lines.append(f'  {btype}: {best}')
@@ -2310,6 +2315,10 @@ def git_push(archive_date_dir):
         return r.returncode
 
     run_git(['add', '--force'] + files_to_add)
+    # consolidate_ongoing_events()는 과거 날짜의 summary.json도 디스크에서 고칠 수 있는데,
+    # 위 candidates는 오늘 날짜 폴더만 대상이라 그 수정분이 커밋에서 누락되어 조용히 방치됐었다.
+    # 이미 git이 추적 중인 captures/ 하위 변경분은 전부 스테이징해서 실제 수정이 항상 커밋에 반영되게 한다.
+    run_git(['add', '-u', '--', 'captures/'])
 
     rc = run_git(['commit', '-m', f'Auto update: {TODAY}'])
     if rc not in (0, 1):  # 1 = nothing to commit

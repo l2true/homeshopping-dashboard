@@ -656,17 +656,28 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
         try:
             raw = _ask_claude(img_path, prompt, text_path, banner_path)
             result = parse_summary_text(raw)
+            # 형식 검증 실패(name 비어있음) 시, 일시적 API 문제일 수 있으니 한 번 더 시도.
+            # (2026-07-23: 4개 채널이 동시에 형식 실패 → 일시적 오류였을 가능성이 높았는데
+            # 그때는 바로 직전 데이터로 대체해버려 완전히 다른 날짜의 옛 행사가 잘못 채워짐)
+            if not result.get('name', '').strip():
+                print(f'{brand} 형식 오류, 재시도 중...')
+                try:
+                    raw_retry = _ask_claude(img_path, prompt, text_path, banner_path)
+                    retry_result = parse_summary_text(raw_retry)
+                    if retry_result.get('name', '').strip():
+                        result = retry_result
+                        print(f'{brand} 재시도 성공: {result.get("name")}')
+                except Exception:
+                    pass
             # 현대: 혜택(body)이 없으면 단순 방송 홍보 → 해당없음 강제 처리
-            if brand == 'hyundai' and not result.get('body', '').strip():
+            if brand == 'hyundai' and not result.get('body', '').strip() and result.get('name', '').strip():
                 result = {'period': '', 'name': '해당없음', 'body': ''}
-            # AI가 "기간:/프로모션명:/혜택:" 형식을 안 지키고 산문으로 답하면
-            # name이 비어있는 채로 저장되어 화면이 깨진다 → 형식 검증 실패 시
-            # 직전 유효한 날짜의 데이터를 그대로 이어받는다 (빈 값 저장 금지).
+            # 재시도까지 실패하면 직전 유효한 날짜의 데이터를 그대로 이어받는다 (빈 값 저장 금지).
             if not result.get('name', '').strip():
                 prev = _find_prev_valid_summary(archive_date_dir, brand)
                 if prev:
                     result = prev
-                    print(f'{brand} 형식 오류 → 직전 유효 데이터로 대체: {prev.get("name")}')
+                    print(f'{brand} 형식 오류(재시도 후에도) → 직전 유효 데이터로 대체: {prev.get("name")}')
                 else:
                     result = {'period': '', 'name': '', 'body': '요약 생성 실패'}
                     print(f'{brand} 형식 오류, 직전 데이터 없음 → 실패 처리')

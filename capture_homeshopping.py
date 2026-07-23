@@ -908,15 +908,41 @@ def consolidate_ongoing_events():
         valid_periods = [e[2] for e in entries if e[2] and _re_module.search(r'\d+/\d+', e[2])]
         best_period = max(valid_periods, key=len, default='')
 
+        # 카드 라인은 원칙적으로 날짜별 원본을 보존하지만(카드 %는 실제로 매일 바뀔 수 있음),
+        # 이번 run의 모든 카드 줄이 숫자(%)는 동일하고 "최대" 유무나 부가 문구만 다르면
+        # (AI가 물결표(~)를 놓쳐서 생긴 표기 흔들림일 뿐 실제 요율 변경이 아니므로) 통일한다.
+        card_lines_all = []
+        for _, body, _, _, _ in entries:
+            for l in body.split('\n'):
+                l = l.strip()
+                if l.startswith('카드:'):
+                    card_lines_all.append(l)
+        uniform_card_line = None
+        if card_lines_all:
+            # "TV 7%, 일반상품 5% 할인"처럼 숫자가 2개 이상인 카테고리별 카드 라인이
+            # 하나라도 섞여 있으면 절대 통일하지 않는다 (첫 숫자만 보고 잘못 뭉개는 것 방지).
+            per_line_nums = [_re_module.findall(r'\d+(?=\s*%)', l) for l in card_lines_all]
+            if all(len(ns) == 1 for ns in per_line_nums):
+                nums = {ns[0] for ns in per_line_nums}
+            else:
+                nums = set()  # 카테고리별 다중 숫자 라인이 있으면 통일 대상에서 제외
+            if len(nums) == 1:
+                with_max = [l for l in card_lines_all if '최대' in l]
+                pool = with_max if with_max else card_lines_all
+                uniform_card_line = min(pool, key=len)
+
         # 4. 해당 행사 모든 날짜 업데이트 (이름·start·period·통일, 카드 제외 혜택만 통합)
         changed_dates = []
         for date, body, period, start, name in entries:
-            # 그날 원래 캡처된 카드 줄을 그대로 보존
-            own_card_lines = [l.strip() for l in body.split('\n')
-                               if l.strip().startswith('카드:')]
-            consolidated_body = consolidated_body_base
-            if own_card_lines:
-                consolidated_body += '\n  ' + '\n  '.join(own_card_lines)
+            if uniform_card_line:
+                consolidated_body = consolidated_body_base + '\n  ' + uniform_card_line
+            else:
+                # 요율 자체가 날짜별로 다름 → 그날 원래 캡처된 카드 줄을 그대로 보존
+                own_card_lines = [l.strip() for l in body.split('\n')
+                                   if l.strip().startswith('카드:')]
+                consolidated_body = consolidated_body_base
+                if own_card_lines:
+                    consolidated_body += '\n  ' + '\n  '.join(own_card_lines)
 
             needs_update = (
                 body != consolidated_body or

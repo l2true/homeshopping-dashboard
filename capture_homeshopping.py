@@ -474,6 +474,40 @@ def _ask_claude(img_path, prompt, text_path=None, banner_path=None):
     return ''
 
 
+def check_claude_auth():
+    """claude CLI 인증이 살아있는지 이미지 없이 가볍고 빠르게 확인.
+    OAuth 토큰 만료 시 4채널 전부 형식 실패 → 재시도도 실패 → 직전 데이터로
+    잘못 대체되는 사고가 반복돼서(2026-07-23, 07-24), 분석 시작 전에 미리 걸러낸다.
+    반환: (ok: bool, message: str)
+    """
+    import subprocess
+    payload = {'type': 'user', 'message': {'role': 'user', 'content': [
+        {'type': 'text', 'text': 'reply with the single word OK, nothing else'}
+    ]}}
+    env = os.environ.copy()
+    env['PYTHONIOENCODING'] = 'utf-8'
+    try:
+        proc = subprocess.run(
+            ['claude', '-p', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'],
+            input=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
+            capture_output=True, env=env, timeout=60,
+        )
+        out = proc.stdout.decode('utf-8', errors='replace')
+        for line in out.splitlines():
+            try:
+                obj = json.loads(line)
+            except Exception:
+                continue
+            if obj.get('type') == 'result':
+                result = obj.get('result', '') or ''
+                if 'authentication_error' in result or 'OAuth access token has expired' in result or 'Invalid authentication credentials' in result:
+                    return False, result
+                return True, result
+        return False, f'응답 파싱 실패 (stdout 없음, rc={proc.returncode})'
+    except Exception as e:
+        return False, str(e)
+
+
 PROMO_HISTORY_PATH = os.path.join(BASE_DIR, 'promo_history.json')
 
 
@@ -2456,11 +2490,32 @@ if __name__ == '__main__':
     except Exception as e:
         print(f'브라우저 실행 실패: {e}')
 
-    print('AI 요약 생성 중...')
-    try:
-        generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab)
-    except Exception as e:
-        print(f'요약 실패: {e}')
+    print('Claude 인증 상태 확인 중...')
+    auth_ok, auth_msg = check_claude_auth()
+    if not auth_ok:
+        print('=' * 60)
+        print(f'[경고] Claude 인증 실패 — AI 요약을 건너뜁니다: {auth_msg}')
+        print('claude CLI에서 재로그인(/login)이 필요합니다.')
+        print('=' * 60)
+        # 인증이 죽은 채로 분석을 시도하면 형식 실패 → 재시도도 실패 →
+        # 직전 날짜의 엉뚱한 데이터로 조용히 대체되는 사고가 반복됐다(07-23, 07-24).
+        # 그러니 아예 시도하지 않고, 오늘 날짜에 인증 오류임을 명확히 남긴다.
+        summaries = {}
+        for brand in ('hyundai', 'gs', 'cj', 'lotte'):
+            summaries[brand] = {
+                'period': '',
+                'name': '⚠ 인증 오류',
+                'body': f'혜택:\n  안내: Claude 인증 만료로 오늘 자동 분석 실패 — 재로그인 필요',
+            }
+        summary_path = os.path.join(archive_date_dir, 'summary.json')
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(summaries, f, ensure_ascii=False, indent=2)
+    else:
+        print('AI 요약 생성 중...')
+        try:
+            generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab)
+        except Exception as e:
+            print(f'요약 실패: {e}')
 
     print('진행 중 행사 요약 통합 중...')
     try:

@@ -130,7 +130,8 @@ def save_tab_names(archive_dir, brand, tabs):
 
 def click_next_tab(page, home_label='홈', skip_labels=None):
     """홈 탭 오른쪽 탭 클릭 (home_label: 홈 탭 텍스트)
-    skip_labels: 해당 탭명이 포함되면 한 칸 더 오른쪽으로 이동 (예: CJ 라이브쇼특가)
+    skip_labels: 해당 탭명이 포함되면 다음 탭으로 계속 이동 (예: CJ 라이브쇼특가·스페셜픽 등이
+    연속으로 나와도 전부 건너뛰고 첫 정상 탭에서 멈춘다)
     """
     return page.evaluate("""
         ([homeLabel, skipLabels]) => {
@@ -138,12 +139,11 @@ def click_next_tab(page, home_label='홈', skip_labels=None):
             const homeIdx = tabs.findIndex(a => a.innerText.trim() === homeLabel);
             if (homeIdx < 0) return null;
             let nextIdx = homeIdx + 1;
-            if (nextIdx < tabs.length && skipLabels && skipLabels.length > 0) {
+            while (nextIdx < tabs.length && skipLabels && skipLabels.length > 0) {
                 const nextText = tabs[nextIdx].innerText.trim();
                 const shouldSkip = skipLabels.some(s => nextText.includes(s));
-                if (shouldSkip && nextIdx + 1 < tabs.length) {
-                    nextIdx = nextIdx + 1;
-                }
+                if (!shouldSkip) break;
+                nextIdx += 1;
             }
             if (nextIdx < tabs.length) {
                 tabs[nextIdx].click();
@@ -360,7 +360,7 @@ def run_gs(browser, archive_dir):
     return tab_name
 
 
-CJ_SKIP_TABS = ['라이브쇼특가', '매일특가', '스페셜픽']  # CJ: 홈 바로 옆이 이 탭이면 그 다음 탭으로 이동
+CJ_SKIP_TABS = ['라이브쇼특가', '매일특가', '스페셜픽', '타임특가']  # CJ: 홈 바로 옆이 이 탭이면 그 다음 탭으로 이동
 HYUNDAI_SKIP_TABS = ['오감쇼']                    # 현대: 방송 프로그램 탭 스킵 → 피드백 시 추가
 
 def run_cj(browser, archive_dir):

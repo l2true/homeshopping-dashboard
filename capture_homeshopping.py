@@ -267,18 +267,26 @@ def run_hyundai(browser, archive_dir):
     # 현대홈쇼핑 다음 이벤트 탭 URL을 추출해 직접 이동
     # (탭 클릭 방식은 SPA가 서브탭을 자동 선택해 이벤트 랜딩 사라짐)
     event_info = page.evaluate("""
-        () => {
+        ([skipLabels]) => {
             const tabs = Array.from(document.querySelectorAll('[data-maindispseq]'));
             const idx = tabs.findIndex(el =>
                 (el.getAttribute('data-appmaincallurl') || '').includes('frstDispTryNmCd=newHome')
             );
-            if (idx < 0 || idx + 1 >= tabs.length) return null;
-            const next = tabs[idx + 1];
-            const callUrl = next.getAttribute('data-appmaincallurl') || '';
-            const name = (next.getAttribute('data-rel') || next.innerText || '').trim().split('\\n').join(' ');
-            return {url: callUrl ? 'https://www.hmall.com' + callUrl : null, name: name};
+            if (idx < 0) return null;
+            let nextIdx = idx + 1;
+            while (nextIdx < tabs.length) {
+                const cand = tabs[nextIdx];
+                const name = (cand.getAttribute('data-rel') || cand.innerText || '').trim().split('\\n').join(' ');
+                const shouldSkip = skipLabels.some(s => name.includes(s));
+                if (!shouldSkip) {
+                    const callUrl = cand.getAttribute('data-appmaincallurl') || '';
+                    return {url: callUrl ? 'https://www.hmall.com' + callUrl : null, name: name};
+                }
+                nextIdx += 1;
+            }
+            return null;
         }
-    """)
+    """, [list(HYUNDAI_BRAND_TABS)])
     tab_name = None
     if event_info and event_info.get('url'):
         tab_name = event_info['name']
@@ -566,6 +574,7 @@ def parse_summary_text(text):
 # 새로 발견되면 여기에 추가
 HYUNDAI_BRAND_TABS = {
     '한국금거래소',
+    '백화점',  # THE HYUNDAI 백화점(오프라인)로 연결되는 링크 — 홈쇼핑 프로모션이 아님
 }
 
 def is_brand_tab(tab_name):

@@ -1,18 +1,18 @@
 {
   "gs": {
-    "name": "매직딜데이",
-    "start": "2026-07-27"
+    "name": "클린&케어 SHOP",
+    "start": "2026-07-28"
   },
   "cj": {
-    "name": "역시즌&클리어런스 SALE",
-    "start": "2026-07-27"
+    "name": "아울렛 SEASON OFF",
+    "start": "2026-07-28"
   },
   "lotte": {
     "name": "썸머 클리어런스",
     "start": "2026-07-27"
   },
   "hyundai": {
-    "name": "리드볼트 Summer Blue Week",
-    "start": "2026-07-27"
+    "name": "올인데이 아모레퍼시피",
+    "start": "2026-07-28"
   }
 }

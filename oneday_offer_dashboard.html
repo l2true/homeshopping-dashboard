@@ -83,6 +83,12 @@ const MONTH_KEYS = ["2026-07", "2026-06", "2026-05", "2026-04", "2026-03", "2026
 
 function fmt(v) { return v.toLocaleString('en-US'); }
 function dayLabel(yyyymmdd) { return yyyymmdd.slice(4,6) + '-' + yyyymmdd.slice(6,8); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function truncName(s) {
+  s = String(s);
+  if (s.length <= 10) return esc(s);
+  return '<span title="' + esc(s) + '">' + esc(s.slice(0, 10)) + '…</span>';
+}
 function deltaHtml(pct) {
   if (pct === null || pct === undefined) return '<span class="delta muted">N/A</span>';
   var cls = pct >= 0 ? 'up' : 'down';
@@ -100,6 +106,7 @@ function buildPrevDay(d) {
       var rec = d.prev_day[b];
       if (!rec) return '<td>-</td>';
       var v = rec[key];
+      if (key === 'deal_nm') return '<td>'+truncName(v)+'</td>';
       if (typeof v === 'number') v = fmt(v);
       return '<td>'+v+'</td>';
     }).join('');
@@ -110,7 +117,7 @@ function buildPrevDay(d) {
 }
 function buildTop5(d) {
   var rows = d.top5.map(function(item){
-    return '<tr><td>'+item.deal_nm+'</td><td class="num">'+fmt(item.deal_amt)+'</td><td class="num">'+fmt(item.click_uv)+'</td><td class="num">'+fmt(item.sal_amt)+'</td></tr>';
+    return '<tr><td>'+truncName(item.deal_nm)+'</td><td class="num">'+fmt(item.deal_amt)+'</td><td class="num">'+fmt(item.click_uv)+'</td><td class="num">'+fmt(item.sal_amt)+'</td></tr>';
   }).join('');
   return '<div class="panel"><div class="panel-title">🔥 TOP5 <span class="panel-sub">해당월 · 구좌실적순</span></div>' +
     '<table class="ptable"><thead><tr><th>딜명</th><th>구좌실적</th><th>클릭UV</th><th>상품실적(취급액)</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
@@ -142,6 +149,7 @@ function buildDailyBlock(bhr, d) {
       var rec = (d.daily[bhr] || {})[dd];
       if (!rec) return '<td class="empty">-</td>';
       var v = rec[key];
+      if (key === 'deal_nm') return '<td>'+truncName(v)+'</td>';
       if (isNum) v = fmt(v);
       return '<td class="'+(isNum?'num':'')+'">'+v+'</td>';
     }).join('');

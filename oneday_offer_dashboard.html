@@ -73,118 +73,33 @@ body {
   justify-content: space-between;
   margin-bottom: 14px;
 }
-.header h1 {
-  font-size: 17px;
-  margin: 0;
-  font-weight: 700;
-}
-.header .badge {
-  background: rgba(255,255,255,0.18);
-  padding: 4px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-}
+.header h1 { font-size: 17px; margin: 0; font-weight: 700; }
+.header .badge { background: rgba(255,255,255,0.18); padding: 4px 12px; border-radius: 6px; font-size: 12px; }
 .wrap { padding: 16px; max-width: 1600px; margin: 0 auto; }
-.grid4 {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
-}
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
 @media (max-width: 1100px) { .grid4 { grid-template-columns: repeat(2, 1fr); } }
-.panel {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  overflow-x: auto;
-}
-.panel-title {
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-.panel-sub {
-  font-weight: 400;
-  font-size: 11px;
-  color: var(--muted);
-}
+.panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px; overflow-x: auto; }
+.panel-title { font-weight: 700; font-size: 13px; margin-bottom: 8px; display: flex; align-items: baseline; gap: 6px; }
+.panel-sub { font-weight: 400; font-size: 11px; color: var(--muted); }
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-.ptable th, .ptable td {
-  border-bottom: 1px solid var(--grid);
-  padding: 6px 8px;
-  text-align: left;
-  white-space: nowrap;
-  font-size: 12.5px;
-}
-.ptable thead th {
-  color: var(--text-secondary);
-  font-weight: 600;
-  border-bottom: 1px solid var(--baseline);
-}
-.ptable tbody th {
-  color: var(--text-secondary);
-  font-weight: 500;
-  white-space: nowrap;
-}
+.ptable th, .ptable td { border-bottom: 1px solid var(--grid); padding: 6px 8px; text-align: left; white-space: nowrap; font-size: 12.5px; }
+.ptable thead th { color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--baseline); }
+.ptable tbody th { color: var(--text-secondary); font-weight: 500; white-space: nowrap; }
 .num { text-align: right; }
-.rank { color: var(--muted); font-weight: 700; }
 .delta { font-weight: 700; }
 .delta.up { color: var(--good-text); }
 .delta.down { color: var(--critical); }
 .delta.muted { color: var(--muted); font-weight: 400; }
-
-.section-title {
-  font-weight: 700;
-  font-size: 14px;
-  margin: 18px 0 8px;
-}
-.daily-block {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 14px;
-}
-.daily-bhr-label {
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 8px;
-  color: var(--brand);
-}
+.section-title { font-weight: 700; font-size: 14px; margin: 18px 0 8px; }
+.daily-block { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 14px; }
+.daily-bhr-label { font-weight: 700; font-size: 13px; margin-bottom: 8px; color: var(--brand); }
 .daily-scroll { overflow-x: auto; }
 .dtable { min-width: 1400px; }
-.dtable th, .dtable td {
-  border: 1px solid var(--grid);
-  padding: 5px 8px;
-  text-align: right;
-  white-space: nowrap;
-  font-size: 12px;
-}
-.dtable thead th {
-  background: var(--brand-soft);
-  color: var(--text-secondary);
-  text-align: center;
-  font-weight: 600;
-}
-.dtable .rowhead {
-  text-align: left;
-  color: var(--text-secondary);
-  font-weight: 600;
-  background: var(--brand-soft);
-  position: sticky;
-  left: 0;
-}
+.dtable th, .dtable td { border: 1px solid var(--grid); padding: 5px 8px; text-align: right; white-space: nowrap; font-size: 12px; }
+.dtable thead th { background: var(--brand-soft); color: var(--text-secondary); text-align: center; font-weight: 600; }
+.dtable .rowhead { text-align: left; color: var(--text-secondary); font-weight: 600; background: var(--brand-soft); position: sticky; left: 0; }
 .dtable .empty { color: var(--muted); text-align: center; }
-.footer-note {
-  color: var(--muted);
-  font-size: 11px;
-  margin-top: 10px;
-  text-align: right;
-}
+.footer-note { color: var(--muted); font-size: 11px; margin-top: 10px; text-align: right; }
 </style>
 </head>
 <body>
@@ -193,7 +108,6 @@ table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nu
     <h1>[홈] 오늘의 PICK 대시보드 (구 하루만혜택)</h1>
     <div class="badge">2026-07</div>
   </div>
-
   <div class="grid4">
     
 <div class="panel">
@@ -234,7 +148,6 @@ table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nu
 </div>
 
   </div>
-
   <div class="section-title">📅 일자별 실적</div>
   
 <div class="daily-block">
@@ -259,8 +172,7 @@ table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nu
   </div>
 </div>
 
-
-  <div class="footer-note">데이터 출처: __oneday_offer (Athena, hbu_dhub) · 생성: Claude Code</div>
+  <div class="footer-note">데이터 출처: __oneday_offer (Athena, hbu_dhub) · 자동 갱신: refresh_oneday_offer.py</div>
 </div>
 </body>
 </html>

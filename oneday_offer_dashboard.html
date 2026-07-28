@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>[홈] 오늘의 PICK 대시보드</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-1: #fcfcfb;
+  --page: #f9f9f7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --brand: #2a78d6;
+  --brand-soft: #eaf1fb;
+  --good: #0ca30c;
+  --good-text: #006300;
+  --critical: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --page: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --brand: #3987e5;
+    --brand-soft: #16283d;
+    --good: #0ca30c;
+    --good-text: #0ca30c;
+    --critical: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1: #1a1a19;
+  --page: #0d0d0d;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --baseline: #383835;
+  --border: rgba(255,255,255,0.10);
+  --brand: #3987e5;
+  --brand-soft: #16283d;
+  --good: #0ca30c;
+  --good-text: #0ca30c;
+  --critical: #e66767;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+}
+.header {
+  background: var(--brand);
+  color: #fff;
+  padding: 14px 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.header h1 {
+  font-size: 17px;
+  margin: 0;
+  font-weight: 700;
+}
+.header .badge {
+  background: rgba(255,255,255,0.18);
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.wrap { padding: 16px; max-width: 1600px; margin: 0 auto; }
+.grid4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (max-width: 1100px) { .grid4 { grid-template-columns: repeat(2, 1fr); } }
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  overflow-x: auto;
+}
+.panel-title {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.panel-sub {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--muted);
+}
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.ptable th, .ptable td {
+  border-bottom: 1px solid var(--grid);
+  padding: 6px 8px;
+  text-align: left;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+.ptable thead th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  border-bottom: 1px solid var(--baseline);
+}
+.ptable tbody th {
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.num { text-align: right; }
+.rank { color: var(--muted); font-weight: 700; }
+.delta { font-weight: 700; }
+.delta.up { color: var(--good-text); }
+.delta.down { color: var(--critical); }
+.delta.muted { color: var(--muted); font-weight: 400; }
+
+.section-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin: 18px 0 8px;
+}
+.daily-block {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+.daily-bhr-label {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 8px;
+  color: var(--brand);
+}
+.daily-scroll { overflow-x: auto; }
+.dtable { min-width: 1400px; }
+.dtable th, .dtable td {
+  border: 1px solid var(--grid);
+  padding: 5px 8px;
+  text-align: right;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.dtable thead th {
+  background: var(--brand-soft);
+  color: var(--text-secondary);
+  text-align: center;
+  font-weight: 600;
+}
+.dtable .rowhead {
+  text-align: left;
+  color: var(--text-secondary);
+  font-weight: 600;
+  background: var(--brand-soft);
+  position: sticky;
+  left: 0;
+}
+.dtable .empty { color: var(--muted); text-align: center; }
+.footer-note {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 10px;
+  text-align: right;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>[홈] 오늘의 PICK 대시보드 (구 하루만혜택)</h1>
+    <div class="badge">2026-07</div>
+  </div>
+
+  <div class="grid4">
+    
+<div class="panel">
+  <div class="panel-title">📌 전일 실적 <span class="panel-sub">07-27</span></div>
+  <table class="ptable">
+    <thead><tr><th></th><th>하루만혜택1</th><th>하루만혜택2</th></tr></thead>
+    <tbody><tr><th>딜명</th><td>파뷔에/프라카</td><td>하림패밀리</td></tr><tr><th>딜코드</th><td>1047969132</td><td>1131502364</td></tr><tr><th>구좌실적</th><td>4,999,113</td><td>1,892,718</td></tr><tr><th>상품실적(취급액)</th><td>14,272,312</td><td>8,409,980</td></tr><tr><th>상품실적(고객수)</th><td>637</td><td>260</td></tr><tr><th>클릭UV</th><td>6,446</td><td>1,406</td></tr></tbody>
+  </table>
+</div>
+
+    
+<div class="panel">
+  <div class="panel-title">🔥 TOP5 <span class="panel-sub">이번달 · 구좌실적순</span></div>
+  <table class="ptable">
+    <thead><tr><th>딜명</th><th>구좌실적</th><th>클릭UV</th><th>상품실적(취급액)</th></tr></thead>
+    <tbody>
+    <tr><td>프로쉬</td><td class='num'>12,591,721</td><td class='num'>5,619</td><td class='num'>41,234,495</td></tr><tr><td>여름침구</td><td class='num'>11,157,513</td><td class='num'>12,721</td><td class='num'>58,983,779</td></tr><tr><td>유한킴벌리</td><td class='num'>8,803,276</td><td class='num'>4,019</td><td class='num'>21,983,556</td></tr><tr><td>퍼실</td><td class='num'>8,394,334</td><td class='num'>2,882</td><td class='num'>38,877,355</td></tr><tr><td>더바디샵</td><td class='num'>7,524,571</td><td class='num'>4,087</td><td class='num'>21,055,518</td></tr>
+    </tbody>
+  </table>
+</div>
+
+    
+<div class="panel">
+  <div class="panel-title">📊 일평균 실적 <span class="panel-sub">MTD(07-01~07-27) 1일 평균</span></div>
+  <table class="ptable">
+    <thead><tr><th></th><th>하루만혜택1</th><th>하루만혜택2</th></tr></thead>
+    <tbody><tr><th>구좌실적</th><td class='num'>4,560,086</td><td class='num'>3,246,990</td></tr><tr><th>전월비</th><td><span class="delta up">▲ +10.3%</span></td><td><span class="delta down">▼ -3.6%</span></td></tr><tr><th>전년비</th><td><span class="delta down">▼ -29.5%</span></td><td><span class="delta down">▼ -31.3%</span></td></tr><tr><th>상품실적(취급액)</th><td class='num'>42,745,840</td><td class='num'>13,552,693</td></tr><tr><th>상품실적(고객수)</th><td class='num'>1,849</td><td class='num'>691</td></tr><tr><th>클릭UV</th><td class='num'>6,588</td><td class='num'>4,287</td></tr></tbody>
+  </table>
+</div>
+
+    
+<div class="panel">
+  <div class="panel-title">🚩 월누적 실적 <span class="panel-sub">MTD(07-01~07-27) 누적</span></div>
+  <table class="ptable">
+    <thead><tr><th></th><th>하루만혜택1</th><th>하루만혜택2</th></tr></thead>
+    <tbody><tr><th>구좌실적</th><td class='num'>123,122,322</td><td class='num'>87,668,724</td></tr><tr><th>전월비</th><td><span class="delta up">▲ +10.3%</span></td><td><span class="delta down">▼ -3.6%</span></td></tr><tr><th>전년비</th><td><span class="delta down">▼ -29.5%</span></td><td><span class="delta down">▼ -31.3%</span></td></tr><tr><th>상품실적(취급액)</th><td class='num'>1,154,137,672</td><td class='num'>365,922,712</td></tr><tr><th>상품실적(고객수)</th><td class='num'>49,917</td><td class='num'>18,668</td></tr><tr><th>클릭UV</th><td class='num'>177,869</td><td class='num'>115,746</td></tr></tbody>
+  </table>
+</div>
+
+  </div>
+
+  <div class="section-title">📅 일자별 실적</div>
+  
+<div class="daily-block">
+  <div class="daily-bhr-label">하루만혜택1</div>
+  <div class="daily-scroll">
+    <table class="dtable">
+      <thead><tr><th class="rowhead">구분</th><th>07-01</th><th>07-02</th><th>07-03</th><th>07-04</th><th>07-05</th><th>07-06</th><th>07-07</th><th>07-08</th><th>07-09</th><th>07-10</th><th>07-11</th><th>07-12</th><th>07-13</th><th>07-14</th><th>07-15</th><th>07-16</th><th>07-17</th><th>07-18</th><th>07-19</th><th>07-20</th><th>07-21</th><th>07-22</th><th>07-23</th><th>07-24</th><th>07-25</th><th>07-26</th><th>07-27</th></tr></thead>
+      <tbody><tr><th class='rowhead'>딜명</th><td class=''>K2
+아이더</td><td class=''>제습기</td><td class=''>아디다스</td><td class=''>여름아우터/원피스</td><td class=''>오휘/빌리프/더후/숨/프라엘</td><td class=''>유한킴벌리</td><td class=''>제철과일</td><td class=''>프로쉬</td><td class=''>신선보양식</td><td class=''>크록스</td><td class=''>여름 특가템</td><td class=''>핏앤베이직</td><td class=''>코렐</td><td class=''>주방생활</td><td class=''>사보텐</td><td class=''>지예찬 중부식</td><td class=''>나인식스뉴욕</td><td class=''>여름아우터</td><td class=''>고려은단</td><td class=''>노스페이스</td><td class=''>퍼실</td><td class=''>마미케어</td><td class=''>하남쭈꾸미</td><td class=''>코코에보니</td><td class=''>여름템</td><td class=''>오모떼</td><td class=''>파뷔에/프라카</td></tr><tr><th class='rowhead'>딜코드</th><td class=''>1039432447</td><td class=''>1014506625</td><td class=''>1128991393</td><td class=''>1128531484</td><td class=''>1129376768</td><td class=''>1093837213</td><td class=''>1128531020</td><td class=''>1029215667</td><td class=''>1128060207</td><td class=''>1090883229</td><td class=''>1130159224</td><td class=''>1116722096</td><td class=''>1129222832</td><td class=''>1024721015</td><td class=''>1130214243</td><td class=''>1130751465</td><td class=''>1130069791</td><td class=''>1130646836</td><td class=''>1077624230</td><td class=''>1130970561</td><td class=''>1104364567</td><td class=''>1130179794</td><td class=''>1016552612</td><td class=''>1129394308</td><td class=''>1131890559</td><td class=''>1103321647</td><td class=''>1047969132</td></tr><tr><th class='rowhead'>구좌실적</th><td class='num'>3,697,809</td><td class='num'>4,029,381</td><td class='num'>761,568</td><td class='num'>4,705,393</td><td class='num'>4,133,374</td><td class='num'>8,803,276</td><td class='num'>4,645,729</td><td class='num'>12,591,721</td><td class='num'>2,596,904</td><td class='num'>1,810,987</td><td class='num'>3,898,791</td><td class='num'>799,118</td><td class='num'>969,140</td><td class='num'>5,406,377</td><td class='num'>6,120,522</td><td class='num'>2,359,793</td><td class='num'>5,910,220</td><td class='num'>5,004,630</td><td class='num'>4,394,674</td><td class='num'>3,602,620</td><td class='num'>8,394,334</td><td class='num'>6,214,028</td><td class='num'>4,621,472</td><td class='num'>4,486,306</td><td class='num'>4,758,740</td><td class='num'>3,406,302</td><td class='num'>4,999,113</td></tr><tr><th class='rowhead'>상품실적(취급액)</th><td class='num'>7,208,487</td><td class='num'>16,875,854</td><td class='num'>5,829,237</td><td class='num'>266,789,430</td><td class='num'>13,029,393</td><td class='num'>21,983,556</td><td class='num'>15,507,123</td><td class='num'>41,234,495</td><td class='num'>127,907,771</td><td class='num'>18,030,851</td><td class='num'>82,054,523</td><td class='num'>2,188,036</td><td class='num'>4,813,221</td><td class='num'>24,902,058</td><td class='num'>14,714,555</td><td class='num'>7,031,805</td><td class='num'>18,561,101</td><td class='num'>219,910,423</td><td class='num'>10,803,707</td><td class='num'>6,377,317</td><td class='num'>38,877,355</td><td class='num'>12,105,411</td><td class='num'>22,989,780</td><td class='num'>10,598,235</td><td class='num'>119,080,551</td><td class='num'>10,461,085</td><td class='num'>14,272,312</td></tr><tr><th class='rowhead'>상품실적(고객수)</th><td class='num'>139</td><td class='num'>94</td><td class='num'>251</td><td class='num'>9,870</td><td class='num'>347</td><td class='num'>684</td><td class='num'>668</td><td class='num'>2,088</td><td class='num'>9,655</td><td class='num'>267</td><td class='num'>4,521</td><td class='num'>165</td><td class='num'>139</td><td class='num'>1,956</td><td class='num'>627</td><td class='num'>261</td><td class='num'>1,066</td><td class='num'>8,104</td><td class='num'>293</td><td class='num'>55</td><td class='num'>1,240</td><td class='num'>356</td><td class='num'>565</td><td class='num'>821</td><td class='num'>4,413</td><td class='num'>635</td><td class='num'>637</td></tr><tr><th class='rowhead'>클릭UV</th><td class='num'>5,261</td><td class='num'>4,114</td><td class='num'>2,911</td><td class='num'>11,672</td><td class='num'>2,487</td><td class='num'>4,019</td><td class='num'>5,774</td><td class='num'>5,619</td><td class='num'>4,182</td><td class='num'>7,682</td><td class='num'>13,368</td><td class='num'>6,198</td><td class='num'>6,517</td><td class='num'>3,504</td><td class='num'>4,603</td><td class='num'>2,349</td><td class='num'>14,301</td><td class='num'>13,703</td><td class='num'>1,917</td><td class='num'>7,232</td><td class='num'>2,882</td><td class='num'>4,236</td><td class='num'>3,354</td><td class='num'>13,172</td><td class='num'>14,278</td><td class='num'>6,088</td><td class='num'>6,446</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="daily-block">
+  <div class="daily-bhr-label">하루만혜택2</div>
+  <div class="daily-scroll">
+    <table class="dtable">
+      <thead><tr><th class="rowhead">구분</th><th>07-01</th><th>07-02</th><th>07-03</th><th>07-04</th><th>07-05</th><th>07-06</th><th>07-07</th><th>07-08</th><th>07-09</th><th>07-10</th><th>07-11</th><th>07-12</th><th>07-13</th><th>07-14</th><th>07-15</th><th>07-16</th><th>07-17</th><th>07-18</th><th>07-19</th><th>07-20</th><th>07-21</th><th>07-22</th><th>07-23</th><th>07-24</th><th>07-25</th><th>07-26</th><th>07-27</th></tr></thead>
+      <tbody><tr><th class='rowhead'>딜명</th><td class=''>여름침구</td><td class=''>버버리</td><td class=''>태그미</td><td class=''>정직한실험실
+메르헨트</td><td class=''>포레스트핏 여름 신상 & 인기 팬츠</td><td class=''>김정문알로에</td><td class=''>더바디샵</td><td class=''>맥퀸뉴욕</td><td class=''>여름침구</td><td class=''>LG생활건강</td><td class=''>아브카</td><td class=''>아이소이</td><td class=''>깨끗한나라</td><td class=''>글라스락</td><td class=''>배럴</td><td class=''>핏플랍</td><td class=''>파르페</td><td class=''>헤지스</td><td class=''>폴햄</td><td class=''>제철과일</td><td class=''>여름간편식</td><td class=''>생필품</td><td class=''>센텔리안24</td><td class=''>클라리온</td><td class=''>AHC</td><td class=''>자운결/탈모케어</td><td class=''>하림패밀리</td></tr><tr><th class='rowhead'>딜코드</th><td class=''>18065105</td><td class=''>1128562610</td><td class=''>1127054322</td><td class=''>1128079803</td><td class=''>1109508599</td><td class=''>1128251463</td><td class=''>1128608246</td><td class=''>1092785702</td><td class=''>1129776699</td><td class=''>1120188845</td><td class=''>1129397162</td><td class=''>1129243545</td><td class=''>93544211</td><td class=''>1071121699</td><td class=''>1064669761</td><td class=''>1130023899</td><td class=''>1130797423</td><td class=''>1105399558</td><td class=''>1130832693</td><td class=''>1130904514</td><td class=''>1116741362</td><td class=''>1018676465</td><td class=''>1130657797</td><td class=''>1116643179</td><td class=''>1131894233</td><td class=''>1130836386</td><td class=''>1131502364</td></tr><tr><th class='rowhead'>구좌실적</th><td class='num'>3,766,465</td><td class='num'>6,235,825</td><td class='num'>2,530,255</td><td class='num'>2,132,803</td><td class='num'>2,604,997</td><td class='num'>4,855,185</td><td class='num'>7,524,571</td><td class='num'>5,456,059</td><td class='num'>7,391,048</td><td class='num'>4,061,789</td><td class='num'>2,490,295</td><td class='num'>1,724,294</td><td class='num'>3,251,331</td><td class='num'>6,093,037</td><td class='num'>318,023</td><td class='num'>3,755,420</td><td class='num'>1,516,613</td><td class='num'>2,233,604</td><td class='num'>6,124,822</td><td class='num'>1,941,573</td><td class='num'>2,210,179</td><td class='num'>2,042,823</td><td class='num'>2,182,348</td><td class='num'>927,841</td><td class='num'>1,675,121</td><td class='num'>729,685</td><td class='num'>1,892,718</td></tr><tr><th class='rowhead'>상품실적(취급액)</th><td class='num'>9,628,089</td><td class='num'>22,188,458</td><td class='num'>7,133,273</td><td class='num'>4,769,017</td><td class='num'>15,886,225</td><td class='num'>20,727,495</td><td class='num'>21,055,518</td><td class='num'>13,576,909</td><td class='num'>49,355,690</td><td class='num'>7,065,014</td><td class='num'>12,335,180</td><td class='num'>8,304,488</td><td class='num'>8,215,121</td><td class='num'>22,669,279</td><td class='num'>1,120,765</td><td class='num'>22,501,765</td><td class='num'>4,473,260</td><td class='num'>8,011,399</td><td class='num'>10,914,052</td><td class='num'>8,737,359</td><td class='num'>12,709,305</td><td class='num'>33,096,529</td><td class='num'>18,456,972</td><td class='num'>1,585,906</td><td class='num'>3,521,194</td><td class='num'>9,474,470</td><td class='num'>8,409,980</td></tr><tr><th class='rowhead'>상품실적(고객수)</th><td class='num'>182</td><td class='num'>106</td><td class='num'>754</td><td class='num'>343</td><td class='num'>857</td><td class='num'>1,590</td><td class='num'>776</td><td class='num'>1,131</td><td class='num'>1,918</td><td class='num'>512</td><td class='num'>915</td><td class='num'>522</td><td class='num'>541</td><td class='num'>1,559</td><td class='num'>37</td><td class='num'>394</td><td class='num'>76</td><td class='num'>161</td><td class='num'>353</td><td class='num'>420</td><td class='num'>859</td><td class='num'>2,786</td><td class='num'>662</td><td class='num'>64</td><td class='num'>166</td><td class='num'>724</td><td class='num'>260</td></tr><tr><th class='rowhead'>클릭UV</th><td class='num'>5,354</td><td class='num'>10,190</td><td class='num'>8,180</td><td class='num'>2,465</td><td class='num'>7,336</td><td class='num'>2,294</td><td class='num'>4,087</td><td class='num'>5,109</td><td class='num'>7,367</td><td class='num'>2,511</td><td class='num'>2,218</td><td class='num'>2,717</td><td class='num'>2,820</td><td class='num'>8,266</td><td class='num'>5,927</td><td class='num'>8,518</td><td class='num'>3,826</td><td class='num'>4,677</td><td class='num'>6,944</td><td class='num'>3,478</td><td class='num'>2,402</td><td class='num'>2,035</td><td class='num'>1,653</td><td class='num'>885</td><td class='num'>1,952</td><td class='num'>1,129</td><td class='num'>1,406</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+
+  <div class="footer-note">데이터 출처: __oneday_offer (Athena, hbu_dhub) · 생성: Claude Code</div>
+</div>
+</body>
+</html>

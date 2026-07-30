@@ -199,14 +199,19 @@ def capture_full(page, path, max_height=9000):
         page.set_viewport_size({'width': VIEWPORT['width'], 'height': capped_h})
         page.wait_for_timeout(300)
         page.screenshot(path=path, full_page=False, timeout=60000, animations='disabled')
-    except Exception:
+    except Exception as e1:
         # fallback: 예외 시 기존 방식(전체 페이지)으로 한 번 더 시도
         try:
             page.screenshot(path=path, full_page=True, timeout=30000, animations='disabled')
-        except Exception:
-            pass
+        except Exception as e2:
+            # 1차·2차 캡처 모두 실패 — 이전엔 여기서 조용히 넘어가서 파일이 아예
+            # 없는데도 run_xxx()가 "완료"로 보고돼 재시도(_run_with_retry)가 안 걸렸다.
+            # 반드시 예외를 올려서 재시도가 발동하고 로그에 실패가 남게 한다.
+            raise RuntimeError(f'capture_full 이중 실패: 1차={e1!r} / 2차={e2!r}') from e2
     finally:
         page.set_viewport_size(VIEWPORT)
+    if not os.path.exists(path):
+        raise RuntimeError(f'capture_full: 스크린샷 파일이 생성되지 않음 ({path})')
     # 하단 흰 여백 제거 (scrollHeight 과대산정으로 인한 빈 공간 크롭)
     _crop_white_bottom(path)
     return path

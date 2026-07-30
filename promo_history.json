@@ -1,18 +1,18 @@
 {
   "gs": {
-    "name": "클린&케어 SHOP",
-    "start": "2026-07-28"
+    "name": "패션Now",
+    "start": "2026-07-30"
   },
   "cj": {
-    "name": "아울렛 SEASON OFF",
-    "start": "2026-07-28"
+    "name": "SEASON OFF 아울렛",
+    "start": "2026-07-30"
   },
   "lotte": {
     "name": "썸머 클리어런스",
     "start": "2026-07-27"
   },
   "hyundai": {
-    "name": "프로티원 슈퍼위크",
-    "start": "2026-07-29"
+    "name": "해당없음",
+    "start": "2026-07-30"
   }
 }

@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 from datetime import date
 import os, glob, shutil, base64, json
 
-BASE_DIR    = r'C:\AI\claude_with_lakehouse'
+BASE_DIR    = r'C:\AI\Promo\homeshopping-dashboard'
 ARCHIVE_DIR = os.path.join(BASE_DIR, 'captures')
 TODAY       = date.today().strftime('%Y.%m.%d')
 TODAY_KEY   = date.today().strftime('%Y-%m-%d')

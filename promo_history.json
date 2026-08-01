@@ -1,18 +1,18 @@
 {
   "gs": {
-    "name": "패션Now",
-    "start": "2026-07-31"
+    "name": "멤버십데이",
+    "start": "2026-08-01"
   },
   "cj": {
-    "name": "아울렛 SEASON OFF",
-    "start": "2026-07-31"
+    "name": "FASHION Clearance",
+    "start": "2026-08-01"
   },
   "lotte": {
     "name": "헬씨루틴",
     "start": "2026-07-31"
   },
   "hyundai": {
-    "name": "디올 기획전 (NEW 포에버 컬렉션)",
-    "start": "2026-07-31"
+    "name": "닥터린",
+    "start": "2026-08-01"
   }
 }

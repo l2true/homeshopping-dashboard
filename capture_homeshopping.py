@@ -300,9 +300,45 @@ def run_hyundai(browser, archive_dir):
     page.wait_for_timeout(2500)
     close_popups(page)
     scroll_to_load(page)
+
+    # 메인 탭 안에 "구매혜택/사은품" 같은 서브 랜딩 배너(btn_landing_* 이미지 링크)가 있으면
+    # 실제 href로 들어가서 그 페이지의 혜택도 별도로 캡처한다. 이미지 안에 박힌 텍스트라
+    # alt 속성으로만 식별 가능 (예: "TV상품 구매 혜택"). 안 잡히면 조용히 건너뛴다.
+    try:
+        sub_link = page.evaluate("""
+            () => {
+                const els = Array.from(document.querySelectorAll('[id^="btn_landing_"]'));
+                for (const el of els) {
+                    const a = el.querySelector('a[href]');
+                    const img = el.querySelector('img');
+                    const alt = img ? (img.getAttribute('alt') || '') : '';
+                    if (a && /구매혜택|사은품|구매 혜택/.test(alt)) {
+                        return {href: a.getAttribute('href'), alt: alt};
+                    }
+                }
+                return null;
+            }
+        """)
+    except Exception:
+        sub_link = None
+
     capture_full(page, os.path.join(archive_dir, 'hyundai_next_tab_full.png'))
     capture_banner(page, os.path.join(archive_dir, 'hyundai_banner.png'))
     save_page_text(page, os.path.join(archive_dir, 'hyundai_page_text.txt'))
+
+    if sub_link and sub_link.get('href'):
+        try:
+            sub_page = page.context.new_page()
+            sub_page.goto(sub_link['href'], wait_until='domcontentloaded', timeout=20000)
+            sub_page.wait_for_timeout(1500)
+            close_popups(sub_page)
+            capture_banner(sub_page, os.path.join(archive_dir, 'hyundai_subevent_banner.png'), height=1400)
+            save_page_text(sub_page, os.path.join(archive_dir, 'hyundai_subevent_text.txt'))
+            sub_page.close()
+            print(f'  현대 서브랜딩 캡처: {sub_link["alt"]}')
+        except Exception as e:
+            print(f'  현대 서브랜딩 캡처 실패(무시): {e}')
+
     page.close()
     return tab_name
 
@@ -449,8 +485,11 @@ def _img_content(path):
     return {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': data}}
 
 
-def _ask_claude(img_path, prompt, text_path=None, banner_path=None):
-    """claude CLI subprocess로 배너+전체이미지+페이지텍스트 분석"""
+def _ask_claude(img_path, prompt, text_path=None, banner_path=None, extra_images=None):
+    """claude CLI subprocess로 배너+전체이미지+페이지텍스트(+서브랜딩 이미지)를 분석.
+    extra_images: [(라벨, 이미지경로), ...] — 메인 탭 안의 "구매혜택/사은품" 같은
+    서브 랜딩 페이지(예: btn_landing_* 링크로 연결되는 별도 이벤트)를 함께 참고시킬 때 사용.
+    """
     import subprocess
 
     content = []
@@ -464,6 +503,10 @@ def _ask_claude(img_path, prompt, text_path=None, banner_path=None):
         with open(text_path, encoding='utf-8', errors='replace') as f:
             page_text = f.read()[:8000]
         content.append({'type': 'text', 'text': f'[페이지 텍스트 원문]\n{page_text}'})
+    for label, extra_path in (extra_images or []):
+        if extra_path and os.path.exists(extra_path):
+            content.append({'type': 'text', 'text': f'[{label}]'})
+            content.append(_img_content(extra_path))
     content.append({'type': 'text', 'text': prompt})
 
     payload = {
@@ -604,7 +647,9 @@ HYUNDAI_PROMPT_EXTRA = (
     '각 섹션에서 확인된 혜택을 모두 추출하세요. '
     '배너 이미지 상단에 "지금이닷 브랜드"라는 문구가 보이면, 그날 노출된 브랜드명이 무엇이든 '
     '프로모션명은 반드시 "지금이닷 브랜드 (브랜드명)" 형식으로 쓰세요 (예: 배너에 ALVIERO MARTINI 1°CLASSE가 크게 있어도 '
-    '"지금이닷 브랜드 (프리마클라쎄)"). 브랜드명만 단독 행사명으로 쓰지 마세요. 이 문구는 배너 이미지 안에만 있고 페이지 텍스트엔 없을 수 있습니다.'
+    '"지금이닷 브랜드 (프리마클라쎄)"). 브랜드명만 단독 행사명으로 쓰지 마세요. 이 문구는 배너 이미지 안에만 있고 페이지 텍스트엔 없을 수 있습니다. '
+    '"메인 탭 안 서브 랜딩 배너" 이미지가 함께 제공되면, 그건 메인 탭 안의 "TV상품 구매혜택" 버튼을 눌러야 나오는 '
+    '별도 페이지(주로 구매 사은품 안내)이므로 반드시 확인해서 사은품 혜택으로 추출하세요.'
 )
 
 
@@ -705,8 +750,13 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
         )
         text_path   = img_path.replace('_next_tab_full.png', '_page_text.txt')
         banner_path = img_path.replace('_next_tab_full.png', '_banner.png')
+        extra_images = []
+        if brand == 'hyundai':
+            sub_banner = os.path.join(archive_date_dir, 'hyundai_subevent_banner.png')
+            if os.path.exists(sub_banner):
+                extra_images.append(('메인 탭 안 서브 랜딩 배너 (예: TV상품 구매혜택/사은품 등)', sub_banner))
         try:
-            raw = _ask_claude(img_path, prompt, text_path, banner_path)
+            raw = _ask_claude(img_path, prompt, text_path, banner_path, extra_images=extra_images)
             result = parse_summary_text(raw)
             # 형식 검증 실패(name 비어있음) 시, 일시적 API 문제일 수 있으니 한 번 더 시도.
             # (2026-07-23: 4개 채널이 동시에 형식 실패 → 일시적 오류였을 가능성이 높았는데

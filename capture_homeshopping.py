@@ -719,7 +719,9 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '"기간:"으로 바로 시작하세요. 이전 데이터를 참고했다는 코멘트도 쓰지 마세요.\n\n'
             '형식:\n'
             '기간: (행사 기간)\n'
-            '프로모션명: (메인 행사명 하나만, 서브 행사명 나열 금지. 페이지에 명확한 행사명이 있으면 그대로 사용, 없으면 배너 로고 텍스트를 활용)\n'
+            '프로모션명: (메인 행사명 하나만, 서브 행사명 나열 금지. 페이지에 명확한 행사명이 있으면 그대로 사용, 없으면 배너 로고 텍스트를 활용. '
+            '"26FW", "25SS", "FW", "SS" 등 시즌/연도 코드는 매 시즌 바뀌는 장식성 접두어이므로 행사명에서 제외하고 '
+            '핵심 행사명만 쓰세요 — 예: "26FW FASHION SHOWCASE"가 아니라 "패션쇼케이스", "26FW 패션쇼케이스"가 아니라 "패션쇼케이스")\n'
             '혜택:\n'
             '  혜택종류: 혜택상세\n\n'
             '기간 작성 규칙:\n'
@@ -903,10 +905,17 @@ def consolidate_ongoing_events():
     if not all_summaries:
         return
 
-    # 이름 정규화: 채널명 prefix 제거 + 공백 제거
+    # 이름 정규화: 채널명 prefix 제거 + 시즌코드(26FW, 25SS 등) 제거 + 공백 제거
+    # (AI가 가끔 "26FW 패션쇼케이스"처럼 시즌코드를 붙여 뽑아내는 경우가 있어,
+    #  같은 행사인데도 시즌코드 유무로 그룹이 갈라지는 것을 막는다)
     _PREFIX = _re_module.compile(r'^(GS샵?|CJ온스타일|롯데홈쇼핑|현대홈쇼핑|현대Hmall|GS SHOP)\s*', _re_module.IGNORECASE)
+    # 반드시 "26FW"/"25SS"처럼 두 자리 연도 숫자가 붙은 경우만 제거 — "FW PRE-VIEW"처럼
+    # 연도 없이 FW/SS 자체가 실제 행사명의 일부인 경우까지 잘못 지우지 않도록 한정.
+    _SEASON_CODE = _re_module.compile(r'^\d{2}(FW|SS)\s+', _re_module.IGNORECASE)
     def _norm_name(n):
-        return _PREFIX.sub('', n).strip().replace(' ', '').lower()
+        n = _PREFIX.sub('', n).strip()
+        n = _SEASON_CODE.sub('', n).strip()
+        return n.replace(' ', '').lower()
 
     # 2. 브랜드별로 정규화된 이름 기준 그룹화 (start가 달라도 같은 행사명이면 통합)
     # event_key → [(date, body, period, start), ...]

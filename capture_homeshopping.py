@@ -1363,16 +1363,18 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     .month-head-row div { text-align: center; font-size: 11px; font-weight: 700; color: #aaa; padding: 4px 0; }
     .month-head-row div.sun { color: #d05a5a; }
     .month-head-row div.sat { color: #3b82c4; }
-    .month-body { display: grid; grid-template-columns: repeat(7,1fr); grid-auto-rows: minmax(90px, auto); gap: 3px; }
-    .month-cell { border: 1px solid #f0f0f4; border-radius: 8px; padding: 5px; overflow: hidden; background: #fff; }
-    .month-cell.out { background: #fafafb; }
-    .month-cell.today { border-color: #c62828; border-width: 2px; }
-    .month-daynum { font-size: 12px; font-weight: 700; color: #444; cursor: pointer; display: inline-block; margin-bottom: 3px; }
-    .month-cell.out .month-daynum { color: #ccc; }
-    .month-cell.today .month-daynum { color: #c62828; }
-    .month-chip { font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 5px; margin-bottom: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
-    .month-more { font-size: 10px; color: #999; padding-left: 2px; }
-    @media (max-width: 760px) { .month-body { grid-auto-rows: minmax(56px, auto); } .month-chip { font-size: 9px; padding: 1px 4px; }
+    .month-weeks { display: flex; flex-direction: column; gap: 3px; }
+    .month-week { display: grid; grid-template-columns: repeat(7,1fr); position: relative; }
+    .month-cellbg { border: 1px solid #f0f0f4; border-radius: 8px; background: #fff; margin: 0 1px; }
+    .month-cellbg.out { background: #fafafb; }
+    .month-cellbg.today { border-color: #c62828; border-width: 2px; }
+    .month-daynum { font-size: 11px; font-weight: 700; color: #444; cursor: pointer; padding: 3px 0 0 7px; z-index: 2; }
+    .month-daynum.out { color: #ccc; }
+    .month-daynum.today { color: #c62828; }
+    .month-bar { font-size: 10.5px; font-weight: 700; line-height: 17px; height: 17px; padding: 0 7px; margin: 0 1px; border-radius: 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; align-self: start; z-index: 1; }
+    .month-bar.cl { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; }
+    .month-bar.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
+    @media (max-width: 760px) { .month-bar { font-size: 9px; padding: 0 4px; } .month-daynum { font-size: 10px; }
       .month-head-row div { font-size: 9px; } }
     .g-row { display: flex; align-items: stretch; }
     .ch-label { width: 92px; min-width: 92px; color: white; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; border-radius: 9px; margin: 4px 8px 4px 0; }
@@ -1690,30 +1692,55 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     let headHtml = '<div class="month-head-row">' +
       ['일','월','화','수','목','금','토'].map((d,i)=>`<div class="${i===0?'sun':i===6?'sat':''}">${d}</div>`).join('') +
       '</div>';
-    let bodyHtml = '<div class="month-body">';
-    cellDates.forEach(({d,out}) => {
-      const iso = toStr(d);
-      const today = iso===TODAY;
-      // 이 날짜에 걸치는 모든 채널의 이벤트 수집
-      let dayEvs = [];
+
+    // 7일씩 주 단위로 묶어서, 각 주 안에서는 겹치는 기간 전체를 이어지는 막대로 렌더링
+    // (주간 뷰의 gantt 막대와 동일한 레인 배치 방식을 그대로 사용)
+    const weeks = [];
+    for(let i=0;i<cellDates.length;i+=7) weeks.push(cellDates.slice(i,i+7));
+
+    let bodyHtml = '';
+    weeks.forEach(week => {
+      const wStart = week[0].d, wEnd = week[6].d;
+      let evs = [];
       channels.forEach(ch => {
         events[ch.key].forEach(ev => {
-          if(iso>=toStr(ev._start) && iso<=toStr(ev._end) && !dimmed(ev)) dayEvs.push(ev);
+          if(ev._end>=wStart && ev._start<=wEnd && !dimmed(ev)) evs.push(ev);
         });
       });
-      dayEvs.sort((a,b)=>a._start-b._start);
-      const shown = dayEvs.slice(0,3);
-      const more = dayEvs.length - shown.length;
-      let chips = shown.map(ev => {
-        const meta = channels.find(c=>c.key===ev.ch);
-        return `<div class="month-chip" style="background:${meta.soft};color:${meta.color}" title="${meta.label} | ${ev.name}${ev.period?' | '+ev.period:''}" onclick="openCard('${ev.ch}','${ev.firstDate}')">${ev.name}</div>`;
+      evs.sort((a,b)=>a._start-b._start);
+      const lanes = [];
+      evs.forEach(ev => {
+        let placed = false;
+        for(let li=0; li<lanes.length; li++){
+          if(lanes[li] < ev._start){ ev._mlane=li; lanes[li]=ev._end; placed=true; break; }
+        }
+        if(!placed){ ev._mlane=lanes.length; lanes.push(ev._end); }
+      });
+      const laneCount = Math.max(1, lanes.length);
+      const rowsCss = `18px repeat(${laneCount}, 18px)`;
+
+      const cellsHtml = week.map(({d,out},i) => {
+        const iso = toStr(d), today = iso===TODAY;
+        const stateCls = (out?' out':'') + (today?' today':'');
+        return `<div class="month-cellbg${stateCls}" style="grid-column:${i+1};grid-row:1 / -1"></div>` +
+               `<span class="month-daynum${stateCls}" style="grid-column:${i+1};grid-row:1" onclick="selectWeek('${iso}')">${d.getDate()}</span>`;
       }).join('');
-      if(more>0) chips += `<div class="month-more">+${more}개 더보기</div>`;
-      bodyHtml += `<div class="month-cell${out?' out':''}${today?' today':''}">` +
-        `<span class="month-daynum" onclick="selectWeek('${iso}')">${d.getDate()}</span>${chips}</div>`;
+
+      const barsHtml = evs.map(ev => {
+        const cs = ev._start<wStart ? wStart : ev._start;
+        const ce = ev._end>wEnd ? wEnd : ev._end;
+        const startCol = Math.round((cs-wStart)/DAY) + 1;
+        const span = Math.round((ce-cs)/DAY) + 1;
+        const contL = ev._start<wStart, contR = ev._end>wEnd;
+        const meta = channels.find(c=>c.key===ev.ch);
+        const tip = `${meta.label} | ${ev.name}${ev.period?' | '+ev.period:''}${ev.types.size?' | '+[...ev.types].join(', '):''}`;
+        return `<div class="month-bar${dimmed(ev)?' dim':''}${contL?' cl':''}${contR?' cr':''}" style="grid-column:${startCol} / span ${span};grid-row:${ev._mlane+2};background:${meta.soft};color:${meta.color};border:1px solid ${meta.color}33" title="${tip}" onclick="openCard('${ev.ch}','${ev.firstDate}')">${ev.name}</div>`;
+      }).join('');
+
+      bodyHtml += `<div class="month-week" style="grid-template-rows:${rowsCss}">${cellsHtml}${barsHtml}</div>`;
     });
-    bodyHtml += '</div>';
-    document.getElementById('month-grid').innerHTML = headHtml + bodyHtml;
+
+    document.getElementById('month-grid').innerHTML = headHtml + `<div class="month-weeks">${bodyHtml}</div>`;
   }
 
   buildFilters();

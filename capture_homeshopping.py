@@ -1544,7 +1544,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     renderMonth();
   }
   let _monthDate = parse(TODAY);
-  function setView(v){
+  function setView(v, skipUrlSync){
     _view = v;
     document.getElementById('vt-week').classList.toggle('active', v==='week');
     document.getElementById('vt-month').classList.toggle('active', v==='month');
@@ -1552,6 +1552,11 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     document.getElementById('month-grid').style.display = v==='month' ? '' : 'none';
     document.getElementById('nav-prev').textContent = v==='week' ? '◀ 지난주' : '◀ 지난달';
     document.getElementById('nav-next').textContent = v==='week' ? '다음주 ▶' : '다음달 ▶';
+    if(!skipUrlSync){
+      const qs = new URLSearchParams(location.search);
+      qs.set('view', v);
+      history.replaceState(null, '', location.pathname + '?' + qs.toString());
+    }
     render();
   }
   function navStep(dir){
@@ -1795,6 +1800,8 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   buildFilters();
   (function init(){
     const qs = new URLSearchParams(location.search);
+    const vParam = qs.get('view');
+    if(vParam === 'month') setView('month', true);
     const dCh = qs.get('ch'), dDate = qs.get('date');
     if(dCh && dDate){
       _weekMon = mondayOf(dDate);

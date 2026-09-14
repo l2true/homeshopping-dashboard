@@ -1316,7 +1316,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>__SITE_NAME__ — 편성표</title>
+  <title>__SITE_NAME__ — 캘린더</title>
   __FAVICON__
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1354,7 +1354,26 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     .cal-table td.inweek { background: #eef2ff; }
     .cal-table td.today { outline: 2px solid #c62828; }
     .cal-table td:hover { background: #1a1a2e; color: white; }
+    .view-toggle { display: flex; gap: 6px; background: white; border: 1px solid #e0e4ff; border-radius: 10px; padding: 3px; }
+    .view-toggle button { border: none; background: transparent; font-size: 12px; font-weight: 700; color: #888; padding: 7px 16px; border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+    .view-toggle button.active { background: #1a1a2e; color: white; }
     .gantt { background: white; border-radius: 14px; padding: 6px 10px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); overflow-x: auto; }
+    .month-grid { background: white; border-radius: 14px; padding: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+    .month-head-row { display: grid; grid-template-columns: repeat(7,1fr); margin-bottom: 4px; }
+    .month-head-row div { text-align: center; font-size: 11px; font-weight: 700; color: #aaa; padding: 4px 0; }
+    .month-head-row div.sun { color: #d05a5a; }
+    .month-head-row div.sat { color: #3b82c4; }
+    .month-body { display: grid; grid-template-columns: repeat(7,1fr); grid-auto-rows: minmax(90px, auto); gap: 3px; }
+    .month-cell { border: 1px solid #f0f0f4; border-radius: 8px; padding: 5px; overflow: hidden; background: #fff; }
+    .month-cell.out { background: #fafafb; }
+    .month-cell.today { border-color: #c62828; border-width: 2px; }
+    .month-daynum { font-size: 12px; font-weight: 700; color: #444; cursor: pointer; display: inline-block; margin-bottom: 3px; }
+    .month-cell.out .month-daynum { color: #ccc; }
+    .month-cell.today .month-daynum { color: #c62828; }
+    .month-chip { font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 5px; margin-bottom: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+    .month-more { font-size: 10px; color: #999; padding-left: 2px; }
+    @media (max-width: 760px) { .month-body { grid-auto-rows: minmax(56px, auto); } .month-chip { font-size: 9px; padding: 1px 4px; }
+      .month-head-row div { font-size: 9px; } }
     .g-row { display: flex; align-items: stretch; }
     .ch-label { width: 92px; min-width: 92px; color: white; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; border-radius: 9px; margin: 4px 8px 4px 0; }
     .ch-label.head { background: transparent; }
@@ -1406,7 +1425,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   </div>
   <nav class="top-nav">
     <a href="index.html">행사 요약</a>
-    <a href="schedule.html" class="active">편성표</a>
+    <a href="schedule.html" class="active">캘린더</a>
     <a href="search.html">검색</a>
   </nav>
   <div class="header-right">자동수집</div>
@@ -1417,13 +1436,18 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     <span class="flabel">혜택 필터</span>
   </div>
   <div class="week-nav">
-    <button onclick="navWeek(-1)">◀ 지난주</button>
+    <div class="view-toggle" id="view-toggle">
+      <button id="vt-week" class="active" onclick="setView('week')">주간</button>
+      <button id="vt-month" onclick="setView('month')">월간</button>
+    </div>
+    <button id="nav-prev" onclick="navStep(-1)">◀ 지난주</button>
     <span id="week-label" onclick="toggleCal(event)"></span>
-    <button onclick="navWeek(1)">다음주 ▶</button>
+    <button id="nav-next" onclick="navStep(1)">다음주 ▶</button>
     <button onclick="goToday()">오늘</button>
     <div class="cal-pop" id="cal-pop"></div>
   </div>
   <div class="gantt" id="grid"></div>
+  <div class="month-grid" id="month-grid" style="display:none"></div>
 </div>
 <div class="ev-modal" id="ev-modal" onclick="if(event.target===this)closeCard()">
   <div class="ev-card" id="ev-card"></div>
@@ -1479,7 +1503,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   function selectWeek(iso){
     _weekMon = mondayOf(iso);
     document.getElementById('cal-pop').classList.remove('open');
-    render();
+    if(_view==='month') setView('week'); else render();
   }
   function renderCal(){
     const [year,month] = _calMonth.split('-').map(Number);
@@ -1509,8 +1533,24 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
       document.getElementById('cal-pop')?.classList.remove('open');
   });
 
+  let _view = 'week';
+  let _monthDate = parse(TODAY);
+  function setView(v){
+    _view = v;
+    document.getElementById('vt-week').classList.toggle('active', v==='week');
+    document.getElementById('vt-month').classList.toggle('active', v==='month');
+    document.getElementById('grid').style.display = v==='week' ? '' : 'none';
+    document.getElementById('month-grid').style.display = v==='month' ? '' : 'none';
+    document.getElementById('nav-prev').textContent = v==='week' ? '◀ 지난주' : '◀ 지난달';
+    document.getElementById('nav-next').textContent = v==='week' ? '다음주 ▶' : '다음달 ▶';
+    render();
+  }
+  function navStep(dir){
+    if(_view==='week') navWeek(dir); else navMonth(dir);
+  }
   function navWeek(dir){ _weekMon.setDate(_weekMon.getDate()+dir*7); render(); }
-  function goToday(){ _weekMon = mondayOf(TODAY); render(); }
+  function navMonth(dir){ _monthDate = new Date(_monthDate.getFullYear(), _monthDate.getMonth()+dir, 1); render(); }
+  function goToday(){ _weekMon = mondayOf(TODAY); _monthDate = parse(TODAY); render(); }
 
   // 행사명에서 브랜드만 추출 (지금이닷 브랜드 등 매일 브랜드만 바뀌는 행사용)
   function brandOf(name){
@@ -1582,6 +1622,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   });
 
   function render(){
+    if(_view==='month'){ renderMonth(); return; }
     const days = [...Array(7)].map((_,i)=>{ const d=new Date(_weekMon); d.setDate(d.getDate()+i); return d; });
     const wStart = new Date(_weekMon);
     const wEnd = new Date(_weekMon.getTime()+6*DAY);
@@ -1628,6 +1669,51 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
       rows += `<div class="g-row"><div class="ch-label" style="background:${ch.soft};color:${ch.color}">${ch.label}</div><div class="track" style="height:${rowH}px">${lines}${bars}</div></div>`;
     });
     document.getElementById('grid').innerHTML = head + rows;
+  }
+
+  function renderMonth(){
+    const year = _monthDate.getFullYear(), month = _monthDate.getMonth();
+    document.getElementById('week-label').textContent = `${year}년 ${month+1}월`;
+    const firstDow = new Date(year, month, 1).getDay();      // 0=일
+    const dim = new Date(year, month+1, 0).getDate();
+    const prevDim = new Date(year, month, 0).getDate();
+    const totalCells = Math.ceil((firstDow + dim) / 7) * 7;
+    const cellDates = [];
+    for(let i=0;i<totalCells;i++){
+      const dayNum = i - firstDow + 1;
+      let d, out;
+      if(dayNum < 1){ d = new Date(year, month-1, prevDim + dayNum); out = true; }
+      else if(dayNum > dim){ d = new Date(year, month+1, dayNum - dim); out = true; }
+      else { d = new Date(year, month, dayNum); out = false; }
+      cellDates.push({d, out});
+    }
+    let headHtml = '<div class="month-head-row">' +
+      ['일','월','화','수','목','금','토'].map((d,i)=>`<div class="${i===0?'sun':i===6?'sat':''}">${d}</div>`).join('') +
+      '</div>';
+    let bodyHtml = '<div class="month-body">';
+    cellDates.forEach(({d,out}) => {
+      const iso = toStr(d);
+      const today = iso===TODAY;
+      // 이 날짜에 걸치는 모든 채널의 이벤트 수집
+      let dayEvs = [];
+      channels.forEach(ch => {
+        events[ch.key].forEach(ev => {
+          if(iso>=toStr(ev._start) && iso<=toStr(ev._end) && !dimmed(ev)) dayEvs.push(ev);
+        });
+      });
+      dayEvs.sort((a,b)=>a._start-b._start);
+      const shown = dayEvs.slice(0,3);
+      const more = dayEvs.length - shown.length;
+      let chips = shown.map(ev => {
+        const meta = channels.find(c=>c.key===ev.ch);
+        return `<div class="month-chip" style="background:${meta.soft};color:${meta.color}" title="${meta.label} | ${ev.name}${ev.period?' | '+ev.period:''}" onclick="openCard('${ev.ch}','${ev.firstDate}')">${ev.name}</div>`;
+      }).join('');
+      if(more>0) chips += `<div class="month-more">+${more}개 더보기</div>`;
+      bodyHtml += `<div class="month-cell${out?' out':''}${today?' today':''}">` +
+        `<span class="month-daynum" onclick="selectWeek('${iso}')">${d.getDate()}</span>${chips}</div>`;
+    });
+    bodyHtml += '</div>';
+    document.getElementById('month-grid').innerHTML = headHtml + bodyHtml;
   }
 
   buildFilters();
@@ -1721,7 +1807,7 @@ SEARCH_TEMPLATE = r'''<!DOCTYPE html>
   </div>
   <nav class="top-nav">
     <a href="index.html">행사 요약</a>
-    <a href="schedule.html">편성표</a>
+    <a href="schedule.html">캘린더</a>
     <a href="search.html" class="active">검색</a>
   </nav>
   <div class="header-right">자동수집</div>
@@ -2057,7 +2143,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
   </div>
   <nav class="top-nav">
     <a href="index.html" class="active">행사 요약</a>
-    <a href="schedule.html">편성표</a>
+    <a href="schedule.html">캘린더</a>
     <a href="search.html">검색</a>
   </nav>
   <div class="header-right">

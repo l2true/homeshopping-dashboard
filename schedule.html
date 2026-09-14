@@ -542,30 +542,45 @@
           if(ev._end>=wStart && ev._start<=wEnd && !dimmed(ev)) evs.push(ev);
         });
       });
-      // 전체 이벤트를 시간순으로 최소 레인에 그리디 배치(주간 뷰와 같은 방식).
-      // 채널 구분 없이 한 주에 보여줄 레인 수를 채널 수만큼(기본 4)으로 제한하고,
-      // 넘치는 레인에 걸리는 요일에만 그 날짜 기준 "+N개 더보기"를 표시한다(구글 캘린더 방식).
+      // 채널마다 고정된 줄(항상 GS/CJ/롯데/현대 순서)을 기본으로 주되, 같은 채널 안에서
+      // 겹치지 않는 행사는 한 줄을 같이 쓰고, 정말 겹칠 때만 그 채널 몫으로 레인을 더 씀.
+      // 기본 화면(펼치지 않은 상태)은 채널당 첫 레인만 보여줘 항상 4줄로 고정하고,
+      // 넘치는 부분은 날짜별로 "+N개 더보기"를 표시한다(구글 캘린더 방식).
       const weekKey = toStr(wStart);
-      const MAX_LANES = channels.length;
-      evs.sort((a,b) => a._start-b._start);
-      const laneEnds = [];
-      evs.forEach(ev => {
-        let placed = false;
-        for(let li=0; li<laneEnds.length; li++){
-          if(laneEnds[li] < ev._start){ ev._mlane=li; laneEnds[li]=ev._end; placed=true; break; }
-        }
-        if(!placed){ ev._mlane=laneEnds.length; laneEnds.push(ev._end); }
+      const chLaneCount = {};
+      channels.forEach(ch => {
+        const chEvs = evs.filter(ev => ev.ch===ch.key).sort((a,b)=>a._start-b._start);
+        const lanes = [];
+        chEvs.forEach(ev => {
+          let placed = false;
+          for(let li=0; li<lanes.length; li++){
+            if(lanes[li] < ev._start){ ev._sublane=li; lanes[li]=ev._end; placed=true; break; }
+          }
+          if(!placed){ ev._sublane=lanes.length; lanes.push(ev._end); }
+        });
+        chLaneCount[ch.key] = Math.max(1, lanes.length);
       });
-      const totalLanes = Math.max(1, laneEnds.length);
+      const hasOverflow = channels.some(c => chLaneCount[c.key] > 1);
       const expanded = _monthExpanded.has(weekKey);
-      const hasOverflow = totalLanes > MAX_LANES;
-      const visibleLaneCount = expanded ? totalLanes : Math.min(totalLanes, MAX_LANES);
-      const extraRow = hasOverflow;  // "더보기"/"접기" 줄 하나 추가
-      const laneCount = visibleLaneCount + (extraRow ? 1 : 0);
-      const rowsCss = `18px repeat(${laneCount}, 18px)`;
 
-      const visibleEvs = evs.filter(ev => ev._mlane < visibleLaneCount);
-      const hiddenEvs = evs.filter(ev => ev._mlane >= visibleLaneCount);
+      let visibleEvs, hiddenEvs, visibleLaneCount;
+      const chLaneBase = {};
+      if(expanded){
+        let acc = 0;
+        channels.forEach(c => { chLaneBase[c.key]=acc; acc += chLaneCount[c.key]; });
+        evs.forEach(ev => { ev._mlane = chLaneBase[ev.ch] + ev._sublane; });
+        visibleEvs = evs;
+        hiddenEvs = [];
+        visibleLaneCount = acc;
+      } else {
+        channels.forEach((c,i) => { chLaneBase[c.key]=i; });
+        visibleEvs = evs.filter(ev => ev._sublane===0);
+        visibleEvs.forEach(ev => { ev._mlane = chLaneBase[ev.ch]; });
+        hiddenEvs = evs.filter(ev => ev._sublane>0);
+        visibleLaneCount = channels.length;
+      }
+      const laneCount = visibleLaneCount + (hasOverflow ? 1 : 0);
+      const rowsCss = `18px repeat(${laneCount}, 18px)`;
 
       const cellsHtml = week.map(({d,out},i) => {
         const iso = toStr(d), today = iso===TODAY;

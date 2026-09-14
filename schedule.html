@@ -61,6 +61,8 @@
     .month-bar { font-size: 10.5px; font-weight: 700; line-height: 17px; height: 17px; padding: 0 7px; margin: 0 1px; border-radius: 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; align-self: start; z-index: 1; }
     .month-bar.cl { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; }
     .month-bar.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
+    .month-toggle { font-size: 10px; font-weight: 700; color: #888; line-height: 17px; height: 17px; padding: 0 7px; cursor: pointer; z-index: 1; }
+    .month-toggle:hover { color: #1a1a2e; text-decoration: underline; }
     @media (max-width: 760px) { .month-bar { font-size: 9px; padding: 0 4px; } .month-daynum { font-size: 10px; }
       .month-head-row div { font-size: 9px; } }
     .g-row { display: flex; align-items: stretch; }
@@ -364,6 +366,11 @@
   });
 
   let _view = 'week';
+  const _monthExpanded = new Set();  // "채널키|주시작일" — 월간 뷰에서 펼쳐진 채널×주
+  function toggleMonthExpand(key){
+    _monthExpanded.has(key) ? _monthExpanded.delete(key) : _monthExpanded.add(key);
+    renderMonth();
+  }
   let _monthDate = parse(TODAY);
   function setView(v){
     _view = v;
@@ -535,10 +542,12 @@
           if(ev._end>=wStart && ev._start<=wEnd && !dimmed(ev)) evs.push(ev);
         });
       });
-      // 채널마다 고정된 줄을 배정 → 겹치는 행사가 몇 개든 주(週) 높이가 항상 채널 수만큼으로 고정됨
-      // (같은 채널 안에서 드물게 겹치면 그 채널 줄 안에서만 추가 레인을 씀)
-      const chLaneBase = {}, chLaneCount = {};
+      // 채널마다 고정된 줄을 배정. 같은 채널에 여러 행사가 겹치면 기본은 가장 최근(늦게 시작한) 것 1개만
+      // 보여주고, "⋯ N개 더보기"로 나머지를 펼칠 수 있게 함 → 기본 화면은 항상 채널당 1줄.
+      const weekKey = toStr(wStart);
+      const chLaneBase = {}, chLaneCount = {}, chToggle = {};
       channels.forEach((c,i) => { chLaneBase[c.key]=i; chLaneCount[c.key]=1; });
+      let visibleEvs = [];
       channels.forEach(ch => {
         const chEvs = evs.filter(ev => ev.ch===ch.key).sort((a,b)=>a._start-b._start);
         const lanes = [];
@@ -549,12 +558,26 @@
           }
           if(!placed){ ev._sublane=lanes.length; lanes.push(ev._end); }
         });
-        chLaneCount[ch.key] = Math.max(1, lanes.length);
+        const laneN = Math.max(1, lanes.length);
+        const expandKey = ch.key + '|' + weekKey;
+        const expanded = _monthExpanded.has(expandKey);
+        if(laneN <= 1 || expanded){
+          chLaneCount[ch.key] = expanded ? laneN + 1 : laneN;  // 펼쳤으면 "접기" 줄 하나 추가
+          chEvs.forEach(ev => visibleEvs.push(ev));
+          if(expanded) chToggle[ch.key] = {row: laneN, label: '접기 ▲', key: expandKey};
+        } else {
+          // 최근(늦게 시작한) 것 하나만 lane 0에 표시, 나머지는 숨기고 더보기 토글만 노출
+          const mostRecent = chEvs.reduce((a,b) => a._start>b._start ? a : b);
+          mostRecent._sublane = 0;
+          visibleEvs.push(mostRecent);
+          chLaneCount[ch.key] = 2;
+          chToggle[ch.key] = {row: 1, label: `⋯ ${chEvs.length-1}개 더보기`, key: expandKey};
+        }
       });
       // 채널별 시작 오프셋 누적 (앞 채널이 레인을 더 썼으면 다음 채널은 그만큼 아래로)
       let acc = 0;
       channels.forEach(c => { chLaneBase[c.key]=acc; acc += chLaneCount[c.key]; });
-      evs.forEach(ev => { ev._mlane = chLaneBase[ev.ch] + ev._sublane; });
+      visibleEvs.forEach(ev => { ev._mlane = chLaneBase[ev.ch] + ev._sublane; });
       const laneCount = Math.max(channels.length, acc);
       const rowsCss = `18px repeat(${laneCount}, 18px)`;
 
@@ -565,7 +588,7 @@
                `<span class="month-daynum${stateCls}" style="grid-column:${i+1};grid-row:1" onclick="selectWeek('${iso}')">${d.getDate()}</span>`;
       }).join('');
 
-      const barsHtml = evs.map(ev => {
+      const barsHtml = visibleEvs.map(ev => {
         const cs = ev._start<wStart ? wStart : ev._start;
         const ce = ev._end>wEnd ? wEnd : ev._end;
         const startCol = Math.round((cs-wStart)/DAY) + 1;
@@ -574,6 +597,11 @@
         const meta = channels.find(c=>c.key===ev.ch);
         const tip = `${meta.label} | ${ev.name}${ev.period?' | '+ev.period:''}${ev.types.size?' | '+[...ev.types].join(', '):''}`;
         return `<div class="month-bar${dimmed(ev)?' dim':''}${contL?' cl':''}${contR?' cr':''}" style="grid-column:${startCol} / span ${span};grid-row:${ev._mlane+2};background:${meta.soft};color:${meta.color};border:1px solid ${meta.color}33" title="${tip}" onclick="openCard('${ev.ch}','${ev.firstDate}')">${ev.name}</div>`;
+      }).join('') + channels.map(ch => {
+        const t = chToggle[ch.key];
+        if(!t) return '';
+        const row = chLaneBase[ch.key] + t.row;
+        return `<div class="month-toggle" style="grid-column:1 / span 7;grid-row:${row+2}" onclick="toggleMonthExpand('${t.key}')">${t.label}</div>`;
       }).join('');
 
       bodyHtml += `<div class="month-week" style="grid-template-rows:${rowsCss}">${cellsHtml}${barsHtml}</div>`;

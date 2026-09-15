@@ -1462,7 +1462,8 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
 </div>
 <script>
   const summaries = __SUMMARIES__;
-  const TODAY = "__TODAY__";
+  // 생성 시점 날짜에 고정되지 않도록 브라우저의 실제 오늘 날짜를 사용
+  const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   __EVENT_ENGINE__
 
   // 필터
@@ -1928,7 +1929,8 @@ SEARCH_TEMPLATE = r'''<!DOCTYPE html>
 </div>
 <script>
   const summaries = __SUMMARIES__;
-  const TODAY = "__TODAY__";
+  // 생성 시점 날짜에 고정되지 않도록 브라우저의 실제 오늘 날짜를 사용
+  const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   __EVENT_ENGINE__
 
   // 검색어 정규화 매칭: 공백 무시 + 소문자 + 부분 포함

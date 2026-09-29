@@ -43,18 +43,26 @@ FAVICON_HTML = (
 
 
 def close_popups(page):
-    for text in ['닫기', '오늘 그만 보기']:
+    for text in ['닫기', '오늘 그만 보기', '오늘 하루 보지 않기', '오늘하루 보지않기', '오늘하루 그만보기']:
         try:
             page.get_by_text(text, exact=True).first.click(timeout=2000)
             page.wait_for_timeout(400)
         except: pass
-    for sel in ['.btn_cls_this', '.pop_close', '.btn_close', '.layer_item.ly_main_pop.open .btn_close']:
+    # 신규고객 웰컴 혜택류 모달처럼 텍스트 매칭이 안 통하는 경우를 위한 넓은 클래스 패턴 폴백
+    # (GS close_popups_gs와 동일한 방식)
+    for sel in ['.btn_cls_this', '.pop_close', '.btn_close', '.layer_item.ly_main_pop.open .btn_close',
+                '[class*=close]', '[class*=Close]', '[aria-label*=닫기]', '[aria-label*=close]',
+                '[class*=popup] [class*=close]', '[class*=modal] [class*=close]', '[class*=layer] [class*=close]']:
         try:
             for btn in page.locator(sel).all():
                 if btn.is_visible():
                     btn.click(timeout=1000)
                     page.wait_for_timeout(300)
         except: pass
+    try:
+        page.keyboard.press('Escape')
+        page.wait_for_timeout(300)
+    except: pass
 
 
 def close_popups_gs(page):

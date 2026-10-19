@@ -487,17 +487,181 @@ def get_archive_dates():
     return folders
 
 
+def compress_images(directory, quality=80, max_height=30000):
+    """캡처 PNG를 JPEG(q80)로 변환하고 원본 PNG는 삭제한다. 풀페이지 PNG는 장당 3~7MB지만
+    JPEG q80은 1~1.5MB라 저장소가 하루 약 20MB씩 불어나던 것을 약 5MB로 줄인다.
+    JPEG는 한 변 65,535px 한도가 있어 비정상적으로 긴 페이지는 max_height 에서 자른다."""
+    from PIL import Image
+    for png in glob.glob(os.path.join(directory, '*.png')):
+        jpg = png[:-4] + '.jpg'
+        try:
+            with Image.open(png) as im:
+                im = im.convert('RGB')
+                if im.height > max_height:
+                    im = im.crop((0, 0, im.width, max_height))
+                im.save(jpg, 'JPEG', quality=quality, optimize=True)
+            os.remove(png)
+        except Exception as e:
+            print(f'  이미지 압축 실패(PNG 유지): {os.path.basename(png)}: {e}')
+
+
 def _img_content(path):
     with open(path, 'rb') as f:
         data = base64.standard_b64encode(f.read()).decode('ascii')
-    return {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': data}}
+    media = 'image/jpeg' if path.lower().endswith(('.jpg', '.jpeg')) else 'image/png'
+    return {'type': 'image', 'source': {'type': 'base64', 'media_type': media, 'data': data}}
+
+
+# 사내 LLM 게이트웨이(OpenAI 호환). 키는 환경변수 LLM_API_KEY 에서만 읽는다 (코드/저장소에 두지 않음).
+# 키가 없거나 호출이 실패하면 기존 claude CLI 방식으로 자동 폴백.
+GATEWAY_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://hiso.gshs.co.kr/v1')
+GATEWAY_MODEL = os.environ.get('LLM_MODEL', 'claude-sonnet')
+GATEWAY_REASONING_EFFORT = os.environ.get('LLM_REASONING_EFFORT', 'medium')
+_gateway_disabled = False  # 이번 실행에서 게이트웨이가 한 번 실패하면 나머지 호출은 바로 CLI로
+
+
+def _gateway_key():
+    return os.environ.get('LLM_API_KEY', '').strip()
+
+
+PX_PER_TOKEN = 764  # 실측: 780x1500 조각 1장 ≈ 1,530토큰 (게이트웨이 한 번에 약 30,000토큰 한도)
+
+
+def _gateway_image_blocks(path, label, slice_h=1500, overlap=60, max_slices=15, token_budget=None):
+    """세로로 긴 캡처를 게이트웨이 한도(장당 3.75MB, 요청당 약 30,000토큰)와 해상도 손실(긴 변이
+    ~1568px을 넘으면 축소됨)을 피하도록 위→아래 조각으로 나눠 JPEG base64 이미지 블록으로 변환한다.
+    token_budget 이 있으면 전체 이미지 토큰이 그 안에 들어오도록 비율을 줄이되(최소 0.5배),
+    그래도 넘치면 아래쪽 조각부터 버린다."""
+    import io, math
+    from PIL import Image
+    img = Image.open(path).convert('RGB')
+    w, h = img.size
+    if token_budget:
+        scale = min(1.0, math.sqrt(token_budget * PX_PER_TOKEN / (w * h)))
+        scale = max(scale, 0.5)
+        if scale < 1.0:
+            img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
+            w, h = img.size
+    boxes = []
+    y = 0
+    while True:
+        end = min(y + slice_h, h)
+        boxes.append((y, end))
+        if end >= h:
+            break
+        y = end - overlap
+    if token_budget:
+        kept, used = [], 0
+        for (y0, y1) in boxes:
+            cost = w * (y1 - y0) / PX_PER_TOKEN
+            if kept and used + cost > token_budget:
+                break
+            kept.append((y0, y1))
+            used += cost
+        boxes = kept
+    boxes = boxes[:max_slices]
+    blocks = []
+    n = len(boxes)
+    for i, (y0, y1) in enumerate(boxes, 1):
+        crop = img.crop((0, y0, w, y1))
+        q = 85
+        buf = io.BytesIO()
+        crop.save(buf, 'JPEG', quality=q)
+        while buf.tell() > 3_500_000 and q > 40:
+            q -= 15
+            buf = io.BytesIO()
+            crop.save(buf, 'JPEG', quality=q)
+        b64 = base64.standard_b64encode(buf.getvalue()).decode('ascii')
+        caption = f'[{label} {i}/{n} (위→아래 순서)]' if n > 1 else f'[{label}]'
+        blocks.append({'type': 'text', 'text': caption})
+        blocks.append({'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,' + b64}})
+    return blocks
+
+
+def _gateway_chat(model, content, max_tokens, reasoning_effort=None, timeout=180):
+    """게이트웨이 chat/completions 한 번 호출 (일시 오류는 1회 재시도). 실패 시 예외."""
+    import urllib.request, urllib.error, time
+    payload = {'model': model, 'max_tokens': max_tokens,
+               'messages': [{'role': 'user', 'content': content}]}
+    if reasoning_effort:
+        payload['reasoning_effort'] = reasoning_effort
+    data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+    last_err = None
+    for attempt in range(2):
+        req = urllib.request.Request(
+            GATEWAY_BASE_URL.rstrip('/') + '/chat/completions', data=data,
+            headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _gateway_key()})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                body = json.loads(r.read().decode('utf-8'))
+            choice = body['choices'][0]
+            if choice.get('finish_reason') == 'length':
+                print('  [게이트웨이] 응답이 max_tokens에서 잘렸습니다')
+            return (choice['message'].get('content') or '').strip()
+        except urllib.error.HTTPError as e:
+            last_err = f'HTTP {e.code}: {e.read().decode("utf-8", "replace")[:300]}'
+            if e.code in (400, 401, 403):   # 재시도해도 소용없는 오류(키 무효·요청 형식·분량 초과 등)
+                break
+        except Exception as e:
+            last_err = f'{type(e).__name__}: {e}'
+        time.sleep(3)
+    raise RuntimeError(last_err)
+
+
+# 1단계(haiku) 전체 페이지 훑기 프롬프트. 게이트웨이는 sonnet 이미지를 장당 ~4,800토큰으로 미리 계산해
+# (요청당 약 30,000토큰 한도) 페이지 전체 조각을 sonnet에 한 번에 못 보내므로, 이미지당 계산량이 작은
+# haiku가 전체를 훑어 메모를 만들고 sonnet이 그 메모를 참고해 최종 요약한다.
+_GATEWAY_SCAN_PROMPT = (
+    '위 이미지들은 홈쇼핑 모바일 행사 페이지를 위→아래로 잘라 축소한 조각들입니다. '
+    '상품 카드들 위에 반복해서 붙는 고유 이름의 섹션 제목·배너(예: OO특가, 룰렛이벤트, 쿠폰팩, 스탬프)만 찾아 '
+    '"- 섹션 제목 (대표 상품·브랜드 1~2개) [조각 번호]" 형식으로 나열하세요. 이미지 속 디자인 글자도 포함합니다.\n'
+    '규칙: 혜택 수치나 할인율은 적지 마세요. 제목 자체가 특정 브랜드명·상품명인 섹션, 개별 상품 뱃지, '
+    '단순 카테고리/상품 목록 제목은 제외하세요. 이미지에 실제로 보이는 글자만 쓰고 추측하지 마세요. 없으면 "없음".'
+)
+
+
+def _ask_gateway(img_path, prompt, text_path=None, banner_path=None, extra_images=None):
+    """사내 게이트웨이로 분석해 결과 텍스트를 반환. 실패 시 예외(호출부가 CLI로 폴백).
+    1단계: haiku가 전체 페이지(축소 조각)를 훑어 메모 작성 → 2단계: sonnet이 배너·페이지 텍스트·메모로 최종 요약."""
+    # 1단계: 전체 페이지 훑기 (haiku, 이미지 약 11,000토큰 예산)
+    scan_blocks = _gateway_image_blocks(img_path, '전체 페이지 캡처 (축소본)', token_budget=11000)
+    scan_blocks.append({'type': 'text', 'text': _GATEWAY_SCAN_PROMPT})
+    notes = _gateway_chat('claude-haiku', scan_blocks, max_tokens=1500)
+
+    # 2단계: 최종 요약 (sonnet). 이미지는 원본 해상도의 배너(+서브랜딩)만 → 이미지 계산량을 한도 안으로 유지
+    content = []
+    if banner_path and os.path.exists(banner_path):
+        content += _gateway_image_blocks(banner_path, '메인 배너 (상단 크롭, 고해상도)')
+    if text_path and os.path.exists(text_path):
+        with open(text_path, encoding='utf-8', errors='replace') as f:
+            page_text = f.read()[:8000]
+        content.append({'type': 'text', 'text': f'[페이지 텍스트 원문]\n{page_text}'})
+    content.append({'type': 'text', 'text':
+        '[이미지 속 고유명 섹션 후보 — 전체 페이지를 훑어 찾은 보조 정보] 혜택의 근거는 위의 페이지 텍스트 원문과 배너를 우선하세요. '
+        '아래 목록은 텍스트에 없는 이미지 속 섹션 이름을 보충하는 용도로만 쓰고, 규칙에 맞는 것만 반영하세요. '
+        '틀릴 수 있으니 확인되지 않으면 무시하세요.\n' + (notes or '(없음)')})
+    for label, extra_path in (extra_images or []):
+        if extra_path and os.path.exists(extra_path):
+            content += _gateway_image_blocks(extra_path, label)
+    content.append({'type': 'text', 'text': prompt})
+    return _gateway_chat(GATEWAY_MODEL, content, max_tokens=3000,
+                         reasoning_effort=GATEWAY_REASONING_EFFORT or None)
 
 
 def _ask_claude(img_path, prompt, text_path=None, banner_path=None, extra_images=None):
     """claude CLI subprocess로 배너+전체이미지+페이지텍스트(+서브랜딩 이미지)를 분석.
+    LLM_API_KEY 가 설정돼 있으면 사내 게이트웨이를 먼저 쓰고, 실패하면 CLI로 폴백한다.
     extra_images: [(라벨, 이미지경로), ...] — 메인 탭 안의 "구매혜택/사은품" 같은
     서브 랜딩 페이지(예: btn_landing_* 링크로 연결되는 별도 이벤트)를 함께 참고시킬 때 사용.
     """
+    global _gateway_disabled
+    if _gateway_key() and not _gateway_disabled:
+        try:
+            return _ask_gateway(img_path, prompt, text_path, banner_path, extra_images)
+        except Exception as e:
+            _gateway_disabled = True
+            print(f'  [게이트웨이] 호출 실패 → 이번 실행은 claude CLI로 폴백: {e}')
+
     import subprocess
 
     content = []
@@ -543,7 +707,22 @@ def check_claude_auth():
     OAuth 토큰 만료 시 4채널 전부 형식 실패 → 재시도도 실패 → 직전 데이터로
     잘못 대체되는 사고가 반복돼서(2026-07-23, 07-24), 분석 시작 전에 미리 걸러낸다.
     반환: (ok: bool, message: str)
+    사내 게이트웨이 키(LLM_API_KEY)가 있으면 게이트웨이 상태를 먼저 확인하고,
+    안 되면 이번 실행은 게이트웨이를 끄고 CLI 인증 확인으로 넘어간다.
     """
+    global _gateway_disabled
+    if _gateway_key() and not _gateway_disabled:
+        import urllib.request
+        try:
+            req = urllib.request.Request(GATEWAY_BASE_URL.rstrip('/') + '/models',
+                                         headers={'Authorization': 'Bearer ' + _gateway_key()})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                if r.status == 200:
+                    return True, 'gateway OK'
+        except Exception as e:
+            _gateway_disabled = True
+            print(f'  [게이트웨이] 상태 확인 실패({e}) → claude CLI 인증 확인으로 넘어갑니다')
+
     import subprocess
     payload = {'type': 'user', 'message': {'role': 'user', 'content': [
         {'type': 'text', 'text': 'reply with the single word OK, nothing else'}
@@ -692,10 +871,10 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
         summaries['hyundai'] = {'period': '', 'name': '해당없음', 'body': ''}
 
     for brand, filename, label, extra in [
-        ('hyundai', 'hyundai_next_tab_full.png', hyundai_tab or '현대홈쇼핑', HYUNDAI_PROMPT_EXTRA),
-        ('gs',      'gs_next_tab_full.png',      gs_tab      or 'GS SHOP',    ''),
-        ('cj',      'cj_next_tab_full.png',       cj_tab      or 'CJ온스타일', ''),
-        ('lotte',   'lotte_next_tab_full.png',    lotte_tab   or '롯데홈쇼핑', ''),
+        ('hyundai', 'hyundai_next_tab_full.jpg', hyundai_tab or '현대홈쇼핑', HYUNDAI_PROMPT_EXTRA),
+        ('gs',      'gs_next_tab_full.jpg',      gs_tab      or 'GS SHOP',    ''),
+        ('cj',      'cj_next_tab_full.jpg',       cj_tab      or 'CJ온스타일', ''),
+        ('lotte',   'lotte_next_tab_full.jpg',    lotte_tab   or '롯데홈쇼핑', ''),
     ]:
         if brand in summaries:  # 이미 처리된 경우(브랜드탭 등) 건너뜀
             continue
@@ -771,11 +950,11 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '예) "6.1-6.2 리빙, 6.3-6.4 식품" 형식이면 해당 날짜의 카테고리만 기재.\n'
             '브랜드를 개별 나열하지 말고 최대 혜택값과 대표 브랜드 2~3개만 표기하세요. 혜택 줄 수는 최대 5줄.'
         )
-        text_path   = img_path.replace('_next_tab_full.png', '_page_text.txt')
-        banner_path = img_path.replace('_next_tab_full.png', '_banner.png')
+        text_path   = img_path.replace('_next_tab_full.jpg', '_page_text.txt')
+        banner_path = img_path.replace('_next_tab_full.jpg', '_banner.jpg')
         extra_images = []
         if brand == 'hyundai':
-            sub_banner = os.path.join(archive_date_dir, 'hyundai_subevent_banner.png')
+            sub_banner = os.path.join(archive_date_dir, 'hyundai_subevent_banner.jpg')
             if os.path.exists(sub_banner):
                 extra_images.append(('메인 탭 안 서브 랜딩 배너 (예: TV상품 구매혜택/사은품 등)', sub_banner))
         try:
@@ -819,7 +998,7 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
         json.dump(summaries, f, ensure_ascii=False, indent=2)
 
     # 배너 크롭은 날짜 파악용으로만 사용 → 요약 완료 후 삭제
-    for banner in glob.glob(os.path.join(archive_date_dir, '*_banner.png')):
+    for banner in glob.glob(os.path.join(archive_date_dir, '*_banner.jpg')):
         try:
             os.remove(banner)
             print(f'배너 삭제: {os.path.basename(banner)}')
@@ -1622,7 +1801,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
       benefits += `<div style="margin-top:6px;font-size:11px;font-weight:700;color:#999">일자별 브랜드</div>${rows}`;
     }
     const dispName = canonName(s.name);
-    const shot = `captures/${date}/${ch}_next_tab_full.png`;
+    const shot = `captures/${date}/${ch}_next_tab_full.jpg`;
     document.getElementById('ev-card').innerHTML =
       `<div class="ev-head">
          <span class="ev-logo" style="background:${meta.color}">${meta.label}</span>
@@ -2044,7 +2223,7 @@ SEARCH_TEMPLATE = r'''<!DOCTYPE html>
     box.innerHTML = list.map(ev => {
       const ch = channels.find(c => c.key === ev.ch);
       const tags = [...ev.types].map(t => `<span class="rtag" style="background:${TYPE_COLORS[t]}22;color:${TYPE_COLORS[t]}">${t}</span>`).join('');
-      const shot = `captures/${ev.firstDate}/${ev.ch}_next_tab_full.png`;
+      const shot = `captures/${ev.firstDate}/${ev.ch}_next_tab_full.jpg`;
       return `<div class="rcard" onclick="goToSchedule('${ev.ch}','${ev.firstDate}')">
         <img class="rshot" src="${shot}" alt="" onerror="this.style.visibility='hidden'">
         <div class="rbody">
@@ -2284,7 +2463,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     <div class="card-body">
       <div class="screenshot-wrap">
         <p>모바일 캡처본</p>
-        <img id="gs-img" src="captures/{latest}/gs_next_tab_full.png" alt="GS SHOP" onclick="openModal(this.src)">
+        <img id="gs-img" src="captures/{latest}/gs_next_tab_full.jpg" alt="GS SHOP" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary" id="gs-summary">{gs_body}</div>
@@ -2301,7 +2480,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     <div class="card-body">
       <div class="screenshot-wrap">
         <p>모바일 캡처본</p>
-        <img id="cj-img" src="captures/{latest}/cj_next_tab_full.png" alt="CJ온스타일" onclick="openModal(this.src)">
+        <img id="cj-img" src="captures/{latest}/cj_next_tab_full.jpg" alt="CJ온스타일" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary" id="cj-summary">{cj_body}</div>
@@ -2318,7 +2497,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     <div class="card-body">
       <div class="screenshot-wrap">
         <p>모바일 캡처본</p>
-        <img id="lotte-img" src="captures/{latest}/lotte_next_tab_full.png" alt="롯데홈쇼핑" onclick="openModal(this.src)">
+        <img id="lotte-img" src="captures/{latest}/lotte_next_tab_full.jpg" alt="롯데홈쇼핑" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary" id="lotte-summary">{lotte_body}</div>
@@ -2335,7 +2514,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     <div class="card-body">
       <div class="screenshot-wrap">
         <p>모바일 캡처본</p>
-        <img id="hyundai-img" src="captures/{latest}/hyundai_next_tab_full.png" alt="현대홈쇼핑" onclick="openModal(this.src)">
+        <img id="hyundai-img" src="captures/{latest}/hyundai_next_tab_full.jpg" alt="현대홈쇼핑" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary" id="hyundai-summary">{hyundai_body}</div>
@@ -2595,10 +2774,10 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
   function closeModal() {{ g('modal').classList.remove('open'); }}
   function switchDate(d) {{
     const obj = s(d);
-    g('hyundai-img').src = 'captures/' + d + '/hyundai_next_tab_full.png';
-    g('gs-img').src      = 'captures/' + d + '/gs_next_tab_full.png';
-    g('cj-img').src      = 'captures/' + d + '/cj_next_tab_full.png';
-    g('lotte-img').src   = 'captures/' + d + '/lotte_next_tab_full.png';
+    g('hyundai-img').src = 'captures/' + d + '/hyundai_next_tab_full.jpg';
+    g('gs-img').src      = 'captures/' + d + '/gs_next_tab_full.jpg';
+    g('cj-img').src      = 'captures/' + d + '/cj_next_tab_full.jpg';
+    g('lotte-img').src   = 'captures/' + d + '/lotte_next_tab_full.jpg';
     g('hyundai-name').textContent = sfield(obj,'hyundai','name','현대홈쇼핑');
     g('gs-name').textContent      = sfield(obj,'gs','name','GS SHOP');
     g('cj-name').textContent      = sfield(obj,'cj','name','CJ온스타일');
@@ -2652,10 +2831,10 @@ def git_push(archive_date_dir):
     rel = os.path.relpath(archive_date_dir, BASE_DIR).replace('\\', '/')
     candidates = [
         'index.html', 'schedule.html', 'search.html', 'promo_history.json',
-        f'{rel}/hyundai_next_tab_full.png', f'{rel}/hyundai_banner.png', f'{rel}/hyundai_page_text.txt',
-        f'{rel}/gs_next_tab_full.png',      f'{rel}/gs_banner.png',      f'{rel}/gs_page_text.txt',
-        f'{rel}/cj_next_tab_full.png',      f'{rel}/cj_banner.png',      f'{rel}/cj_page_text.txt',
-        f'{rel}/lotte_next_tab_full.png',   f'{rel}/lotte_banner.png',   f'{rel}/lotte_page_text.txt',
+        f'{rel}/hyundai_next_tab_full.jpg', f'{rel}/hyundai_banner.jpg', f'{rel}/hyundai_page_text.txt',
+        f'{rel}/gs_next_tab_full.jpg',      f'{rel}/gs_banner.jpg',      f'{rel}/gs_page_text.txt',
+        f'{rel}/cj_next_tab_full.jpg',      f'{rel}/cj_banner.jpg',      f'{rel}/cj_page_text.txt',
+        f'{rel}/lotte_next_tab_full.jpg',   f'{rel}/lotte_banner.jpg',   f'{rel}/lotte_page_text.txt',
         f'{rel}/summary.json',
         f'{rel}/tab_names.json',
     ]
@@ -2758,6 +2937,8 @@ if __name__ == '__main__':
             browser.close()
     except Exception as e:
         print(f'브라우저 실행 실패: {e}')
+
+    compress_images(archive_date_dir)   # PNG → JPEG (분석·웹페이지·git 모두 .jpg 기준)
 
     print('Claude 인증 상태 확인 중...')
     auth_ok, auth_msg = check_claude_auth()

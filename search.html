@@ -349,7 +349,7 @@
     box.innerHTML = list.map(ev => {
       const ch = channels.find(c => c.key === ev.ch);
       const tags = [...ev.types].map(t => `<span class="rtag" style="background:${TYPE_COLORS[t]}22;color:${TYPE_COLORS[t]}">${t}</span>`).join('');
-      const shot = `captures/${ev.firstDate}/${ev.ch}_next_tab_full.png`;
+      const shot = `captures/${ev.firstDate}/${ev.ch}_next_tab_full.jpg`;
       return `<div class="rcard" onclick="goToSchedule('${ev.ch}','${ev.firstDate}')">
         <img class="rshot" src="${shot}" alt="" onerror="this.style.visibility='hidden'">
         <div class="rbody">

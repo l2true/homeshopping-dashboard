@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>홈쇼핑행사모아 — 2026.10.18</title>
+  <title>홈쇼핑행사모아 — 2026.10.19</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect x='1' y='5' width='15' height='15' rx='5' fill='#f6cba5'/%3E%3Crect x='10' y='9' width='17' height='17' rx='5.5' fill='#e2541f'/%3E%3C/svg%3E">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -73,7 +73,7 @@
     <a href="search.html">검색</a>
   </nav>
   <div class="header-right">
-    <span class="header-date" id="header-date">기준일: 2026-10-18</span>
+    <span class="header-date" id="header-date">기준일: 2026-10-19</span>
     <span class="live-dot">자동수집</span>
   </div>
 </header>
@@ -113,7 +113,7 @@
     <div class="card-body">
       <div class="screenshot-wrap">
         <p>모바일 캡처본</p>
-        <img id="gs-img" src="captures/2026-10-18/gs_next_tab_full.png" alt="GS SHOP" onclick="openModal(this.src)">
+        <img id="gs-img" src="captures/2026-10-18/gs_next_tab_full.jpg" alt="GS SHOP" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary" id="gs-summary">혜택:
@@ -135,7 +135,7 @@
     <div class="card-body">
       <div class="screenshot-wrap">
         <p>모바일 캡처본</p>
-        <img id="cj-img" src="captures/2026-10-18/cj_next_tab_full.png" alt="CJ온스타일" onclick="openModal(this.src)">
+        <img id="cj-img" src="captures/2026-10-18/cj_next_tab_full.jpg" alt="CJ온스타일" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary" id="cj-summary">혜택:
@@ -154,7 +154,7 @@
     <div class="card-body">
       <div class="screenshot-wrap">
         <p>모바일 캡처본</p>
-        <img id="lotte-img" src="captures/2026-10-18/lotte_next_tab_full.png" alt="롯데홈쇼핑" onclick="openModal(this.src)">
+        <img id="lotte-img" src="captures/2026-10-18/lotte_next_tab_full.jpg" alt="롯데홈쇼핑" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary" id="lotte-summary">혜택:
@@ -175,7 +175,7 @@
     <div class="card-body">
       <div class="screenshot-wrap">
         <p>모바일 캡처본</p>
-        <img id="hyundai-img" src="captures/2026-10-18/hyundai_next_tab_full.png" alt="현대홈쇼핑" onclick="openModal(this.src)">
+        <img id="hyundai-img" src="captures/2026-10-18/hyundai_next_tab_full.jpg" alt="현대홈쇼핑" onclick="openModal(this.src)">
         <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
       </div>
       <div class="summary" id="hyundai-summary">혜택:
@@ -437,10 +437,10 @@
   function closeModal() { g('modal').classList.remove('open'); }
   function switchDate(d) {
     const obj = s(d);
-    g('hyundai-img').src = 'captures/' + d + '/hyundai_next_tab_full.png';
-    g('gs-img').src      = 'captures/' + d + '/gs_next_tab_full.png';
-    g('cj-img').src      = 'captures/' + d + '/cj_next_tab_full.png';
-    g('lotte-img').src   = 'captures/' + d + '/lotte_next_tab_full.png';
+    g('hyundai-img').src = 'captures/' + d + '/hyundai_next_tab_full.jpg';
+    g('gs-img').src      = 'captures/' + d + '/gs_next_tab_full.jpg';
+    g('cj-img').src      = 'captures/' + d + '/cj_next_tab_full.jpg';
+    g('lotte-img').src   = 'captures/' + d + '/lotte_next_tab_full.jpg';
     g('hyundai-name').textContent = sfield(obj,'hyundai','name','현대홈쇼핑');
     g('gs-name').textContent      = sfield(obj,'gs','name','GS SHOP');
     g('cj-name').textContent      = sfield(obj,'cj','name','CJ온스타일');

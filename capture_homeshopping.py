@@ -519,9 +519,44 @@ GATEWAY_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://hiso.gshs.co.kr/v1')
 # (opus 는 안내문대로 "신청한 키에서만" 가능 — 권한을 받으면 LLM_MODEL=claude-opus 로 바꿔 재시험).
 # 롯데·현대 3일치 시험에서 sonnet 은 기존 CLI 결과보다 행사 공통 혜택을 놓치는 경우가 있었다.
 GATEWAY_MODEL = os.environ.get('LLM_MODEL', 'claude-sonnet')
-GATEWAY_REASONING_EFFORT = os.environ.get('LLM_REASONING_EFFORT', 'medium')
+GATEWAY_REASONING_EFFORT = os.environ.get('LLM_REASONING_EFFORT', 'high')   # 3일 시험에서 high + 상단 이미지 + 보충 지침 조합이 가장 정확
 _gateway_disabled = False  # 이번 실행에서 게이트웨이가 한 번 실패하면 나머지 호출은 바로 CLI로
-GATEWAY_EXTRA_PROMPT = ''  # 게이트웨이 모델(Sonnet 5)용 보충 지침 — 기존 프롬프트는 CLI 모델 기준으로 다듬어져 있음
+# 게이트웨이 모델(Sonnet 5)용 보충 지침 — 기존 프롬프트는 CLI 모델(Sonnet 4.6) 기준으로 다듬어져 있어서
+# Sonnet 5 는 "확신 없으면 생략" 규칙을 너무 엄격하게 따라 행사 공통 혜택을 놓쳤다. 이 지침이 앞 규칙보다 우선한다.
+GATEWAY_EXTRA_PROMPT = '''
+
+추가 지침 (이 모델용 보충. 앞의 규칙과 충돌하면 이 지침이 우선합니다):
+- 앞의 "확신이 없으면 생략하세요/누락이 낫습니다"는 문구가 실제로 보이는데도 쓰지 않을 이유가 되지는 않습니다. 이미지나 페이지 텍스트에서 문구가 분명히 확인되는 행사 공통 혜택은 반드시 쓰세요. 생략해도 되는 것은 문구가 흐려서 읽을 수 없는 항목과, 특정 브랜드·상품 하나만의 혜택뿐입니다.
+- 행사 페이지 상단의 혜택 안내 영역(배너 바로 아래의 혜택 타일·아이콘·"혜택 모아보기"류. 예: 쇼핑한 만큼 돌려받는 사은품, 응모 이벤트, 매일 특정 금액 쿠폰, 쿠폰팩, 스탬프)에 적힌 항목은 행사 공통 혜택이므로 페이지 텍스트 원문을 끝까지 확인해 빠짐없이 포함하세요. 제외 대상은 특정 브랜드·상품 하나에만 해당하는 쿠폰/할인(예: "OO X 이벤트 라이브", "OO 신상&아울렛 최대 90%")입니다.
+- 서로 다른 혜택종류(카드/적립/쿠폰/사은품/경품/할인/특가)가 있으면 각각 한 줄씩 따로 쓰세요. 하나라도 빠뜨리는 것보다 확인된 항목을 모두 적는 쪽이 낫습니다.
+
+올바른 출력 예시 (다른 행사의 정답. 형식과 항목 수준을 참고하세요):
+[현대 다드림 감사제]
+기간: 9/1 ~ 9/13
+프로모션명: 다드림 감사제
+혜택:
+  사은품: TV상품 30만원 이상 구매 시 캐리어 또는 3만원 적립금 중 택1
+  쿠폰: 매일 선착순 쿠폰팩 10% 쿠폰·5,000원 쿠폰·30,000원 쿠폰 (최대 320억 규모)
+  경품: 룰렛이벤트
+  특가: 다드림특가 (자뎅, 금빛방앗간 등)
+
+[롯데 보름찬 다드림쇼핑]
+기간: 9/9 ~ 9/21
+프로모션명: 보름찬 다드림쇼핑
+혜택:
+  적립: 최대 100만 적립, 보름찬 스탬프 7만원 이상 구매 시 1개당 적립 (1개 3천원·2개 6천원·3개 1만원)
+
+[GS 판타지추석]
+기간: 9/2 ~ 9/21
+프로모션명: 판타지추석
+혜택:
+  쿠폰: 식품 선물세트 더블쿠폰 5% (9/2~9/21)
+  적립: 10% 적립
+  경품: 송편뽑기
+'''
+# 최종 호출에 배너 아래 상단 영역을 원본 해상도 조각 N장으로 추가. 이미지 1장을 sonnet은 ~4,800토큰으로 미리 계산하고
+# 요청당 한도가 ~30,000토큰이라 배너 1장 + 이 값 2장까지가 안전하다 (3~4장이면 한도 근처).
+GATEWAY_TOP_SLICES = 2
 
 
 def _gateway_key():
@@ -531,7 +566,7 @@ def _gateway_key():
 PX_PER_TOKEN = 764  # 실측: 780x1500 조각 1장 ≈ 1,530토큰 (게이트웨이 한 번에 약 30,000토큰 한도)
 
 
-def _gateway_image_blocks(path, label, slice_h=1500, overlap=60, max_slices=15, token_budget=None):
+def _gateway_image_blocks(path, label, slice_h=1500, overlap=60, max_slices=15, token_budget=None, y_range=None):
     """세로로 긴 캡처를 게이트웨이 한도(장당 3.75MB, 요청당 약 30,000토큰)와 해상도 손실(긴 변이
     ~1568px을 넘으면 축소됨)을 피하도록 위→아래 조각으로 나눠 JPEG base64 이미지 블록으로 변환한다.
     token_budget 이 있으면 전체 이미지 토큰이 그 안에 들어오도록 비율을 줄이되(최소 0.5배),
@@ -539,7 +574,11 @@ def _gateway_image_blocks(path, label, slice_h=1500, overlap=60, max_slices=15, 
     import io, math
     from PIL import Image
     img = Image.open(path).convert('RGB')
+    if y_range:   # 세로 일부 구간만 (예: 배너 아래 이어지는 상단 영역)
+        img = img.crop((0, min(y_range[0], img.height), img.width, min(y_range[1], img.height)))
     w, h = img.size
+    if h <= 0:
+        return []
     if token_budget:
         scale = min(1.0, math.sqrt(token_budget * PX_PER_TOKEN / (w * h)))
         scale = max(scale, 0.5)
@@ -636,6 +675,10 @@ def _ask_gateway(img_path, prompt, text_path=None, banner_path=None, extra_image
     content = []
     if banner_path and os.path.exists(banner_path):
         content += _gateway_image_blocks(banner_path, '메인 배너 (상단 크롭, 고해상도)')
+    if GATEWAY_TOP_SLICES > 0:   # 배너(상단 1200px) 바로 아래 영역: 혜택 타일·아이콘이 모여 있는 곳
+        content += _gateway_image_blocks(img_path, '배너 아래 이어지는 상단 영역 (원본 해상도)', overlap=0,
+                                         max_slices=GATEWAY_TOP_SLICES,
+                                         y_range=(1200, 1200 + 1500 * GATEWAY_TOP_SLICES))
     if text_path and os.path.exists(text_path):
         with open(text_path, encoding='utf-8', errors='replace') as f:
             page_text = f.read()[:8000]

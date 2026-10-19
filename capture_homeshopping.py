@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 from datetime import date
 import os, glob, shutil, base64, json
 
-BASE_DIR    = r'C:\AI\Promo\homeshopping-dashboard'
+BASE_DIR    = os.path.dirname(os.path.abspath(__file__))   # 로컬 PC·클라우드(리눅스) 모두 이 파일이 있는 폴더 기준
 ARCHIVE_DIR = os.path.join(BASE_DIR, 'captures')
 TODAY       = date.today().strftime('%Y.%m.%d')
 TODAY_KEY   = date.today().strftime('%Y-%m-%d')
@@ -2826,18 +2826,20 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
 
 
 def git_push(archive_date_dir):
-    """캡처 결과를 GitHub에 자동 push"""
+    """캡처 결과를 GitHub에 자동 push. archive_date_dir 은 날짜 폴더 하나 또는 여러 개(리스트)."""
     import subprocess
-    rel = os.path.relpath(archive_date_dir, BASE_DIR).replace('\\', '/')
-    candidates = [
-        'index.html', 'schedule.html', 'search.html', 'promo_history.json',
-        f'{rel}/hyundai_next_tab_full.jpg', f'{rel}/hyundai_banner.jpg', f'{rel}/hyundai_page_text.txt',
-        f'{rel}/gs_next_tab_full.jpg',      f'{rel}/gs_banner.jpg',      f'{rel}/gs_page_text.txt',
-        f'{rel}/cj_next_tab_full.jpg',      f'{rel}/cj_banner.jpg',      f'{rel}/cj_page_text.txt',
-        f'{rel}/lotte_next_tab_full.jpg',   f'{rel}/lotte_banner.jpg',   f'{rel}/lotte_page_text.txt',
-        f'{rel}/summary.json',
-        f'{rel}/tab_names.json',
-    ]
+    dirs = archive_date_dir if isinstance(archive_date_dir, (list, tuple)) else [archive_date_dir]
+    candidates = ['index.html', 'schedule.html', 'search.html', 'promo_history.json']
+    for d in dirs:
+        rel = os.path.relpath(d, BASE_DIR).replace('\\', '/')
+        candidates += [
+            f'{rel}/hyundai_next_tab_full.jpg', f'{rel}/hyundai_banner.jpg', f'{rel}/hyundai_page_text.txt',
+            f'{rel}/gs_next_tab_full.jpg',      f'{rel}/gs_banner.jpg',      f'{rel}/gs_page_text.txt',
+            f'{rel}/cj_next_tab_full.jpg',      f'{rel}/cj_banner.jpg',      f'{rel}/cj_page_text.txt',
+            f'{rel}/lotte_next_tab_full.jpg',   f'{rel}/lotte_banner.jpg',   f'{rel}/lotte_page_text.txt',
+            f'{rel}/summary.json',
+            f'{rel}/tab_names.json',
+        ]
     files_to_add = [f for f in candidates if os.path.exists(os.path.join(BASE_DIR, f.replace('/', os.sep)))]
 
     def run_git(args, check=False):
@@ -2862,14 +2864,190 @@ def git_push(archive_date_dir):
     rc = run_git(['push', 'origin', 'main'])
     if rc != 0:
         print('push 실패 → pull --rebase 후 재시도')
-        run_git(['pull', '--rebase', 'origin', 'main'])
+        if run_git(['pull', '--rebase', 'origin', 'main']) != 0:
+            run_git(['rebase', '--abort'])   # 충돌로 rebase가 중간에 멈춘 채 남아 다음 실행을 막지 않도록
         rc = run_git(['push', 'origin', 'main'])
         if rc != 0:
             print('push 재시도 실패 — 로컬에는 저장됨')
 
 
+# ── 클라우드 캡처 기준 구조 ─────────────────────────────────────────────────────
+# 캡처(스크린샷·페이지 텍스트)는 GitHub Actions가 매일 올리고(--cloud), 요약(AI 분석)은 사내망 PC가
+# 비어 있는 날짜를 찾아 채운다(--analyze-pending). 캡처는 지난 날짜를 소급할 수 없지만 분석은 나중에
+# 해도 같은 결과라서, PC가 꺼져 있던 날에도 데이터가 빠지지 않는다.
+PENDING_LOOKBACK_DAYS = 14   # 이 기간 안의 날짜만 "분석 대기"로 본다 (오래된 실패 건을 무한 재시도하지 않도록)
+
+
+def _pick_tab(tabs, skip_labels=None):
+    """tab_names.json 의 탭 목록에서 click_next_tab 이 눌렀을 탭(홈 다음, skip 제외)을 재현."""
+    skip_labels = skip_labels or []
+    if not tabs or tabs[0] != '홈':
+        return None
+    for t in tabs[1:]:
+        if any(s in t for s in skip_labels):
+            continue
+        return t
+    return None
+
+
+def tabs_for_date(archive_dir):
+    """저장된 tab_names.json 으로 generate_summary 에 넘길 (현대, GS, CJ, 롯데) 탭명을 복원."""
+    try:
+        with open(os.path.join(archive_dir, 'tab_names.json'), encoding='utf-8') as f:
+            tabs = json.load(f)
+    except Exception:
+        return None, None, None, None
+    return ((tabs.get('hyundai') or [None])[0], (tabs.get('gs') or [None])[0],
+            _pick_tab(tabs.get('cj'), CJ_SKIP_TABS), _pick_tab(tabs.get('lotte')))
+
+
+def _summary_needs_analysis(date_dir):
+    """summary.json 이 없거나, 인증 오류/요약 실패로 채워지지 않은 날짜인가."""
+    p = os.path.join(date_dir, 'summary.json')
+    if not os.path.exists(p):
+        return True
+    try:
+        with open(p, encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception:
+        return True
+    for brand in ('hyundai', 'gs', 'cj', 'lotte'):
+        s = data.get(brand) or {}
+        if '인증 오류' in (s.get('name') or '') or '요약 생성 실패' in (s.get('body') or ''):
+            return True
+    return False
+
+
+def find_pending_dates():
+    """캡처 이미지는 있는데 요약이 비어 있는 날짜 폴더 목록 (오래된 순)."""
+    from datetime import datetime, timedelta
+    cutoff = datetime.now() - timedelta(days=PENDING_LOOKBACK_DAYS)
+    pending = []
+    for d in sorted(glob.glob(os.path.join(ARCHIVE_DIR, '????-??-??'))):
+        try:
+            if datetime.strptime(os.path.basename(d), '%Y-%m-%d') < cutoff:
+                continue
+        except ValueError:
+            continue
+        if not glob.glob(os.path.join(d, '*_next_tab_full.jpg')):
+            continue   # 캡처가 없으면 분석할 수 없음
+        if _summary_needs_analysis(d):
+            pending.append(d)
+    return pending
+
+
+def run_analyze_pending():
+    """사내망 PC용: 클라우드가 올린 캡처 중 요약이 비어 있는 날짜를 오래된 순으로 분석하고
+    consolidate → HTML 갱신 → push 까지 한다. 대기 날짜가 없으면 바로 끝난다."""
+    global TODAY_KEY
+    import subprocess
+    print('원격 최신 캡처 받는 중 (git pull --rebase)...')
+    r = subprocess.run(['git', '-C', BASE_DIR, 'pull', '--rebase', '--autostash', 'origin', 'main'],
+                       capture_output=True, text=True, encoding='utf-8', errors='replace')
+    print((r.stdout + r.stderr).strip()[-500:])
+
+    pending = find_pending_dates()
+    if not pending:
+        print('분석할 날짜 없음')
+        return
+    print('분석 대기 날짜:', ', '.join(os.path.basename(d) for d in pending))
+
+    print('Claude 인증 상태 확인 중...')
+    auth_ok, auth_msg = check_claude_auth()
+    if not auth_ok:
+        print(f'[경고] Claude 인증 실패 — AI 요약을 건너뜁니다: {auth_msg}')
+
+    real_today = TODAY_KEY
+    for d in pending:
+        date_key = os.path.basename(d)
+        if auth_ok:
+            TODAY_KEY = date_key   # update_promo_start()가 새 프로모션 시작일을 그 날짜로 기록하도록
+            print(f'[{date_key}] 요약 생성 중...')
+            try:
+                generate_summary(d, *tabs_for_date(d))
+            except Exception as e:
+                print(f'[{date_key}] 요약 실패: {e}')
+        elif not os.path.exists(os.path.join(d, 'summary.json')):
+            # 화면에는 안내가 보이도록 임시 표시만 남기고, 인증이 복구되면 다음 실행에서 채운다
+            sentinel = {b: {'period': '', 'name': '⚠ 인증 오류',
+                            'body': '혜택:\n  안내: Claude 인증 만료로 자동 분석 대기 중 — 재로그인 필요'}
+                        for b in ('hyundai', 'gs', 'cj', 'lotte')}
+            with open(os.path.join(d, 'summary.json'), 'w', encoding='utf-8') as f:
+                json.dump(sentinel, f, ensure_ascii=False, indent=2)
+    TODAY_KEY = real_today
+
+    for label, fn in (('진행 중 행사 요약 통합', consolidate_ongoing_events), ('기간 날짜 오독 검증', validate_periods)):
+        print(f'{label} 중...')
+        try:
+            fn()
+        except Exception as e:
+            print(f'{label} 실패: {e}')
+    try:
+        update_html(None, None, None, None, get_archive_dates())
+    except Exception as e:
+        print(f'HTML 업데이트 실패: {e}')
+    try:
+        git_push(pending)
+    except Exception as e:
+        print(f'git push 실패: {e}')
+
+
+def run_cloud_capture():
+    """GitHub Actions용: 4개 쇼핑몰을 캡처해 captures/오늘/ 에 JPEG로 저장하고 커밋·push (분석은 안 함)."""
+    import subprocess
+    rel = f'captures/{TODAY_KEY}'
+    archive_dir = os.path.join(ARCHIVE_DIR, TODAY_KEY)
+
+    def git(args):
+        r = subprocess.run(['git', '-C', BASE_DIR] + args,
+                           capture_output=True, text=True, encoding='utf-8', errors='replace')
+        out = (r.stdout + r.stderr).strip()
+        if out:
+            print(out)
+        return r.returncode, r.stdout
+
+    # 오늘 폴더가 이미 저장소에 있으면(보조 스케줄 중복 실행 등) 건너뜀
+    git(['fetch', '--depth=1', 'origin', 'main'])
+    _, listing = git(['ls-tree', '-r', '--name-only', 'origin/main', rel + '/'])
+    if '_next_tab_full.jpg' in listing:
+        print(f'{rel} 는 이미 저장소에 있어 건너뜁니다')
+        return 0
+
+    os.makedirs(archive_dir, exist_ok=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+        for name, func in [('현대', run_hyundai), ('GS', run_gs), ('CJ', run_cj), ('롯데', run_lotte)]:
+            try:
+                tab = _run_with_retry(func, browser, archive_dir, retries=2)
+                print(f'{name} 완료: {tab}')
+            except Exception as e:
+                print(f'{name} 캡처 최종 실패: {e}')
+        browser.close()
+
+    compress_images(archive_dir)
+    if not glob.glob(os.path.join(archive_dir, '*_next_tab_full.jpg')):
+        print('캡처된 이미지가 하나도 없어 중단합니다')
+        return 1
+
+    git(['config', 'user.name', 'github-actions[bot]'])
+    git(['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'])
+    git(['add', '--sparse', rel])   # 클라우드 체크아웃은 captures/ 를 받지 않으므로 sparse 밖 경로 추가를 허용
+    git(['commit', '-m', f'Cloud capture: {TODAY_KEY}'])
+    for _ in range(4):
+        rc, _out = git(['push', 'origin', 'HEAD:main'])
+        if rc == 0:
+            print('push 완료')
+            return 0
+        print('push 실패 → pull --rebase 후 재시도')
+        git(['pull', '--rebase', 'origin', 'main'])
+    return 1
+
+
 if __name__ == '__main__':
     import sys, subprocess as _sp
+
+    if '--cloud' in sys.argv:        # GitHub Actions: 캡처만 하고 올린다 (로그 파일·분석·HTML 없음)
+        sys.exit(run_cloud_capture())
 
     # 로그 파일 출력 (작업 스케줄러는 콘솔이 없어 sys.__stdout__ 사용 불가)
     log_path = os.path.join(BASE_DIR, 'capture_log.txt')
@@ -2881,14 +3059,28 @@ if __name__ == '__main__':
                 sys.__stdout__.flush()
             except Exception:
                 pass  # 콘솔 없는 환경(작업 스케줄러)에서는 무시
-            log_f.write(msg)
-            log_f.flush()
+            try:
+                log_f.write(msg)
+                log_f.flush()
+            except Exception:
+                pass  # 로그 파일을 닫은 뒤 종료 시점의 flush 에서 오류가 나면 종료 코드가 120이 되던 문제 방지
         def flush(self):
             try: sys.__stdout__.flush()
             except Exception: pass
-            log_f.flush()
+            try: log_f.flush()
+            except Exception: pass
     sys.stdout = Tee()
     sys.stderr = Tee()  # 에러도 로그에 기록
+
+    if '--analyze-pending' in sys.argv:   # 사내망 PC: 클라우드가 올린 캡처 중 요약이 비어 있는 날짜를 채운다
+        print(f'\n[{TODAY}] 분석 대기 날짜 처리 시작...')
+        run_analyze_pending()
+        if glob.glob(os.path.join(ARCHIVE_DIR, TODAY_KEY, '*_next_tab_full.jpg')):
+            print('분석 대기 처리 종료')
+            log_f.close()
+            sys.exit(0)
+        # 클라우드 캡처가 실패했거나 아직 안 올라온 날은 이 PC가 직접 캡처·분석해서 공백을 막는다 (아래 기존 흐름)
+        print('[대체] 오늘자 클라우드 캡처가 없어 이 PC에서 직접 캡처합니다')
 
     import time as _time
     _script_start = _time.time()

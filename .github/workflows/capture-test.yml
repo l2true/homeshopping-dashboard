@@ -1,0 +1,70 @@
+name: capture-test
+
+# 시험용: 수동 실행만 가능 (스케줄 없음). 저장소 데이터는 건드리지 않고 결과는 artifact로만 남김.
+on:
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            capture_homeshopping.py
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install playwright pillow
+          sudo apt-get update -y
+          sudo apt-get install -y fonts-nanum fonts-noto-cjk
+          playwright install --with-deps chromium
+
+      - name: Capture test
+        run: |
+          python - <<'PY'
+          import os, sys, json, time
+          sys.path.insert(0, os.getcwd())
+          import capture_homeshopping as c
+          from playwright.sync_api import sync_playwright
+
+          OUT = 'ci_out'
+          os.makedirs(OUT, exist_ok=True)
+          BLOCK_HINTS = ['access denied', 'forbidden', 'blocked', 'captcha', 'robot', '접근이 거부', '차단', '비정상적인 접근', 'akamai', 'cloudflare']
+          results = {}
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+              for name, func in [('hyundai', c.run_hyundai), ('gs', c.run_gs), ('cj', c.run_cj), ('lotte', c.run_lotte)]:
+                  t = time.time()
+                  try:
+                      tab = c._run_with_retry(func, browser, OUT, retries=1)
+                      results[name] = {'ok': True, 'tab': tab, 'sec': round(time.time() - t, 1)}
+                  except Exception as e:
+                      results[name] = {'ok': False, 'error': str(e)[:400], 'sec': round(time.time() - t, 1)}
+              browser.close()
+          for name in results:
+              txt = os.path.join(OUT, name + '_page_text.txt')
+              png = os.path.join(OUT, name + '_next_tab_full.png')
+              text = open(txt, encoding='utf-8', errors='replace').read() if os.path.exists(txt) else ''
+              results[name]['text_chars'] = len(text)
+              results[name]['png_kb'] = round(os.path.getsize(png) / 1024) if os.path.exists(png) else 0
+              results[name]['block_hints'] = [h for h in BLOCK_HINTS if h in text.lower()]
+              results[name]['text_head'] = text[:200].replace('\n', ' | ')
+          with open(os.path.join(OUT, 'results.json'), 'w', encoding='utf-8') as f:
+              json.dump(results, f, ensure_ascii=False, indent=2)
+          print(json.dumps(results, ensure_ascii=False, indent=2))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capture-out
+          path: ci_out/
+          retention-days: 3

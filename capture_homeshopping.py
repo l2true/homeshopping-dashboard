@@ -515,9 +515,13 @@ def _img_content(path):
 # 사내 LLM 게이트웨이(OpenAI 호환). 키는 환경변수 LLM_API_KEY 에서만 읽는다 (코드/저장소에 두지 않음).
 # 키가 없거나 호출이 실패하면 기존 claude CLI 방식으로 자동 폴백.
 GATEWAY_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://hiso.gshs.co.kr/v1')
+# 이 키로는 claude-opus 가 502(모델 접근 권한)로 막혀 있어 sonnet 을 기본으로 쓴다
+# (opus 는 안내문대로 "신청한 키에서만" 가능 — 권한을 받으면 LLM_MODEL=claude-opus 로 바꿔 재시험).
+# 롯데·현대 3일치 시험에서 sonnet 은 기존 CLI 결과보다 행사 공통 혜택을 놓치는 경우가 있었다.
 GATEWAY_MODEL = os.environ.get('LLM_MODEL', 'claude-sonnet')
 GATEWAY_REASONING_EFFORT = os.environ.get('LLM_REASONING_EFFORT', 'medium')
 _gateway_disabled = False  # 이번 실행에서 게이트웨이가 한 번 실패하면 나머지 호출은 바로 CLI로
+GATEWAY_EXTRA_PROMPT = ''  # 게이트웨이 모델(Sonnet 5)용 보충 지침 — 기존 프롬프트는 CLI 모델 기준으로 다듬어져 있음
 
 
 def _gateway_key():
@@ -643,8 +647,8 @@ def _ask_gateway(img_path, prompt, text_path=None, banner_path=None, extra_image
     for label, extra_path in (extra_images or []):
         if extra_path and os.path.exists(extra_path):
             content += _gateway_image_blocks(extra_path, label)
-    content.append({'type': 'text', 'text': prompt})
-    return _gateway_chat(GATEWAY_MODEL, content, max_tokens=3000,
+    content.append({'type': 'text', 'text': prompt + GATEWAY_EXTRA_PROMPT})
+    return _gateway_chat(GATEWAY_MODEL, content, max_tokens=8000,   # 추론 토큰도 출력 한도에 포함되므로 넉넉히
                          reasoning_effort=GATEWAY_REASONING_EFFORT or None)
 
 

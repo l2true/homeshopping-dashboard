@@ -695,20 +695,11 @@ def _ask_gateway(img_path, prompt, text_path=None, banner_path=None, extra_image
                          reasoning_effort=GATEWAY_REASONING_EFFORT or None)
 
 
-def _ask_claude(img_path, prompt, text_path=None, banner_path=None, extra_images=None):
-    """claude CLI subprocess로 배너+전체이미지+페이지텍스트(+서브랜딩 이미지)를 분석.
-    LLM_API_KEY 가 설정돼 있으면 사내 게이트웨이를 먼저 쓰고, 실패하면 CLI로 폴백한다.
+def _ask_claude_cli(img_path, prompt, text_path=None, banner_path=None, extra_images=None):
+    """claude CLI subprocess로 배너+전체이미지+페이지텍스트(+서브랜딩 이미지)를 분석 (기존 방식).
     extra_images: [(라벨, 이미지경로), ...] — 메인 탭 안의 "구매혜택/사은품" 같은
     서브 랜딩 페이지(예: btn_landing_* 링크로 연결되는 별도 이벤트)를 함께 참고시킬 때 사용.
     """
-    global _gateway_disabled
-    if _gateway_key() and not _gateway_disabled:
-        try:
-            return _ask_gateway(img_path, prompt, text_path, banner_path, extra_images)
-        except Exception as e:
-            _gateway_disabled = True
-            print(f'  [게이트웨이] 호출 실패 → 이번 실행은 claude CLI로 폴백: {e}')
-
     import subprocess
 
     content = []
@@ -749,27 +740,105 @@ def _ask_claude(img_path, prompt, text_path=None, banner_path=None, extra_images
     return ''
 
 
-def check_claude_auth():
-    """claude CLI 인증이 살아있는지 이미지 없이 가볍고 빠르게 확인.
-    OAuth 토큰 만료 시 4채널 전부 형식 실패 → 재시도도 실패 → 직전 데이터로
-    잘못 대체되는 사고가 반복돼서(2026-07-23, 07-24), 분석 시작 전에 미리 걸러낸다.
-    반환: (ok: bool, message: str)
-    사내 게이트웨이 키(LLM_API_KEY)가 있으면 게이트웨이 상태를 먼저 확인하고,
-    안 되면 이번 실행은 게이트웨이를 끄고 CLI 인증 확인으로 넘어간다.
-    """
-    global _gateway_disabled
-    if _gateway_key() and not _gateway_disabled:
-        import urllib.request
+# 게이트웨이 사용 방식 (환경변수 LLM_MODE 로 바꿀 수 있음, LLM_API_KEY 가 없으면 항상 CLI만 사용)
+#  shadow  : CLI 결과를 게시하고, 게이트웨이 결과는 summary_gateway.json 에만 저장해 비교한다.
+#            CLI가 실패(인증 만료 등)하면 게이트웨이 결과로 대신 게시한다.  ← 기본값
+#  primary : 게이트웨이 결과를 게시하고, 실패하면 CLI로 폴백한다.
+#  off     : 게이트웨이를 쓰지 않는다.
+GATEWAY_MODE = os.environ.get('LLM_MODE', 'shadow')
+_last_source = 'cli'   # 마지막 분석 결과가 어디서 왔는지('cli'/'gateway') — 그림자 비교의 중복 호출 방지용
+
+
+def _gateway_usable():
+    return bool(_gateway_key()) and GATEWAY_MODE != 'off' and not _gateway_disabled
+
+
+def _ask_claude(img_path, prompt, text_path=None, banner_path=None, extra_images=None):
+    """분석 호출 진입점. 기본(shadow)은 claude CLI 결과를 쓰고, CLI가 실패하면 게이트웨이로 대신한다.
+    primary 모드는 게이트웨이를 먼저 쓰고 실패 시 CLI로 폴백."""
+    global _gateway_disabled, _last_source
+    if _gateway_usable() and GATEWAY_MODE == 'primary':
         try:
-            req = urllib.request.Request(GATEWAY_BASE_URL.rstrip('/') + '/models',
-                                         headers={'Authorization': 'Bearer ' + _gateway_key()})
-            with urllib.request.urlopen(req, timeout=20) as r:
-                if r.status == 200:
-                    return True, 'gateway OK'
+            raw = _ask_gateway(img_path, prompt, text_path, banner_path, extra_images)
+            _last_source = 'gateway'
+            return raw
         except Exception as e:
             _gateway_disabled = True
-            print(f'  [게이트웨이] 상태 확인 실패({e}) → claude CLI 인증 확인으로 넘어갑니다')
+            print(f'  [게이트웨이] 호출 실패 → 이번 실행은 claude CLI로 폴백: {e}')
 
+    cli_exc, raw = None, ''
+    try:
+        raw = _ask_claude_cli(img_path, prompt, text_path, banner_path, extra_images)
+    except Exception as e:
+        cli_exc = e
+    if raw and '프로모션명:' in raw:      # 정상 형식이면 그대로 사용
+        _last_source = 'cli'
+        return raw
+    print(f'  [CLI] 정상 응답 아님 → 원문 앞부분: {raw[:200]!r} 예외: {cli_exc!r}')   # 원인 추적용 (일시 오류 vs 인증 vs 한도)
+
+    if _gateway_usable():                 # CLI 실패(인증 만료·타임아웃·형식 오류) → 게이트웨이로 대신
+        try:
+            print('  [게이트웨이] CLI 결과가 없어 게이트웨이로 대신 분석합니다')
+            raw2 = _ask_gateway(img_path, prompt, text_path, banner_path, extra_images)
+            _last_source = 'gateway'
+            return raw2
+        except Exception as e:
+            _gateway_disabled = True
+            print(f'  [게이트웨이] 대신 분석도 실패: {e}')
+    _last_source = 'cli'
+    if cli_exc:
+        raise cli_exc
+    return raw
+
+
+def _shadow_run(img_path, prompt, text_path=None, banner_path=None, extra_images=None):
+    """그림자 모드: 같은 입력을 게이트웨이로도 분석해 비교용 결과(dict)를 돌려준다. 게시에는 쓰지 않는다."""
+    global _gateway_disabled
+    if GATEWAY_MODE != 'shadow' or _last_source != 'cli' or not _gateway_usable():
+        return None
+    try:
+        return parse_summary_text(_ask_gateway(img_path, prompt, text_path, banner_path, extra_images))
+    except Exception as e:
+        _gateway_disabled = True
+        print(f'  [그림자] 게이트웨이 호출 실패 → 이번 실행의 비교는 건너뜁니다: {e}')
+        return None
+
+
+def _gateway_reachable():
+    import urllib.request
+    try:
+        req = urllib.request.Request(GATEWAY_BASE_URL.rstrip('/') + '/models',
+                                     headers={'Authorization': 'Bearer ' + _gateway_key()})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status == 200
+    except Exception as e:
+        print(f'  [게이트웨이] 상태 확인 실패: {e}')
+        return False
+
+
+def check_claude_auth():
+    """분석을 시작해도 되는지 사전 점검. OAuth 토큰 만료 시 4채널 전부 형식 실패 → 재시도도 실패 →
+    직전 데이터로 잘못 대체되는 사고가 반복돼서(2026-07-23, 07-24), 분석 시작 전에 미리 걸러낸다.
+    반환: (ok: bool, message: str)
+    - primary: 게이트웨이가 살아 있으면 OK, 아니면 CLI 확인으로 넘어간다.
+    - shadow(기본): CLI가 살아 있으면 OK. CLI 인증이 만료됐어도 게이트웨이가 살아 있으면 그쪽으로 대신 분석한다.
+    """
+    global _gateway_disabled
+    if _gateway_usable() and GATEWAY_MODE == 'primary':
+        if _gateway_reachable():
+            return True, 'gateway OK'
+        _gateway_disabled = True
+    ok, msg = _check_cli_auth()
+    if ok:
+        return True, msg
+    if _gateway_usable() and _gateway_reachable():
+        print('  [게이트웨이] CLI 인증 실패 → 게이트웨이로 대신 분석합니다')
+        return True, 'CLI 인증 실패 → 게이트웨이로 대신 분석'
+    return False, msg
+
+
+def _check_cli_auth():
+    """claude CLI 인증이 살아있는지 이미지 없이 가볍고 빠르게 확인. 반환: (ok, message)"""
     import subprocess
     payload = {'type': 'user', 'message': {'role': 'user', 'content': [
         {'type': 'text', 'text': 'reply with the single word OK, nothing else'}
@@ -909,8 +978,9 @@ def _find_prev_valid_summary(archive_date_dir, brand, max_back=10):
 
 
 def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
-    """캡처 이미지를 claude CLI로 분석해 행사 요약 생성"""
+    """캡처 이미지를 claude CLI로 분석해 행사 요약 생성 (그림자 모드면 게이트웨이 결과도 비교용으로 따로 저장)"""
     summaries = {}
+    shadow_summaries = {}   # 그림자 모드: 게이트웨이 결과 (게시에는 쓰지 않고 summary_gateway.json 에만 저장)
 
     # 현대홈쇼핑: 브랜드 탭이면 AI 분석 없이 즉시 해당없음 처리
     if is_brand_tab(hyundai_tab):
@@ -1033,6 +1103,9 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
                     result = {'period': '', 'name': '', 'body': '요약 생성 실패'}
                     print(f'{brand} 형식 오류, 직전 데이터 없음 → 실패 처리')
             summaries[brand] = result
+            shadow = _shadow_run(img_path, prompt, text_path, banner_path, extra_images=extra_images)
+            if shadow:
+                shadow_summaries[brand] = shadow
             print(f'{brand} 요약 완료')
         except Exception as e:
             print(f'{brand} 요약 실패: {e}')
@@ -1043,6 +1116,9 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
     summary_path = os.path.join(archive_date_dir, 'summary.json')
     with open(summary_path, 'w', encoding='utf-8') as f:
         json.dump(summaries, f, ensure_ascii=False, indent=2)
+    if shadow_summaries:   # 게이트웨이 비교용 (사이트에는 쓰이지 않음)
+        with open(os.path.join(archive_date_dir, 'summary_gateway.json'), 'w', encoding='utf-8') as f:
+            json.dump(shadow_summaries, f, ensure_ascii=False, indent=2)
 
     # 배너 크롭은 날짜 파악용으로만 사용 → 요약 완료 후 삭제
     for banner in glob.glob(os.path.join(archive_date_dir, '*_banner.jpg')):
@@ -2885,6 +2961,7 @@ def git_push(archive_date_dir):
             f'{rel}/cj_next_tab_full.jpg',      f'{rel}/cj_banner.jpg',      f'{rel}/cj_page_text.txt',
             f'{rel}/lotte_next_tab_full.jpg',   f'{rel}/lotte_banner.jpg',   f'{rel}/lotte_page_text.txt',
             f'{rel}/summary.json',
+            f'{rel}/summary_gateway.json',
             f'{rel}/tab_names.json',
         ]
     files_to_add = [f for f in candidates if os.path.exists(os.path.join(BASE_DIR, f.replace('/', os.sep)))]
@@ -3121,6 +3198,7 @@ if __name__ == '__main__':
 
     if '--analyze-pending' in sys.argv:   # 사내망 PC: 클라우드가 올린 캡처 중 요약이 비어 있는 날짜를 채운다
         print(f'\n[{TODAY}] 분석 대기 날짜 처리 시작...')
+        print(f'[게이트웨이] 키 {"감지됨" if _gateway_key() else "없음"}, 모드={GATEWAY_MODE}')
         run_analyze_pending()
         if glob.glob(os.path.join(ARCHIVE_DIR, TODAY_KEY, '*_next_tab_full.jpg')):
             print('분석 대기 처리 종료')
@@ -3139,6 +3217,7 @@ if __name__ == '__main__':
         return False
 
     print(f'\n[{TODAY}] 홈쇼핑 자동 캡처 시작...')
+    print(f'[게이트웨이] 키 {"감지됨" if _gateway_key() else "없음"}, 모드={GATEWAY_MODE}')
 
     # playwright 브라우저 자동 설치 (업데이트 후 경로 변경 대비) — 로그에 결과 기록
     # NODE_TLS_REJECT_UNAUTHORIZED=0 : 회사 프록시 self-signed 인증서 우회

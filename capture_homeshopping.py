@@ -622,7 +622,8 @@ def _gateway_image_blocks(path, label, slice_h=1500, overlap=60, max_slices=15, 
 
 
 def _gateway_chat(model, content, max_tokens, reasoning_effort=None, timeout=180):
-    """게이트웨이 chat/completions 한 번 호출 (일시 오류는 1회 재시도). 실패 시 예외."""
+    """게이트웨이 chat/completions 한 번 호출. 일시 오류(502 등)는 대기 시간을 늘려가며 최대 4번 시도. 실패 시 예외.
+    (2026-10-22: 502 한 번에 2번째 시도가 3초 뒤라 바로 포기돼 그날 요약이 통째로 실패했음)"""
     import urllib.request, urllib.error, time
     payload = {'model': model, 'max_tokens': max_tokens,
                'messages': [{'role': 'user', 'content': content}]}
@@ -630,7 +631,8 @@ def _gateway_chat(model, content, max_tokens, reasoning_effort=None, timeout=180
         payload['reasoning_effort'] = reasoning_effort
     data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
     last_err = None
-    for attempt in range(2):
+    waits = [5, 20, 60]   # 시도 사이 대기(초)
+    for attempt in range(len(waits) + 1):
         req = urllib.request.Request(
             GATEWAY_BASE_URL.rstrip('/') + '/chat/completions', data=data,
             headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _gateway_key()})
@@ -647,7 +649,8 @@ def _gateway_chat(model, content, max_tokens, reasoning_effort=None, timeout=180
                 break
         except Exception as e:
             last_err = f'{type(e).__name__}: {e}'
-        time.sleep(3)
+        if attempt < len(waits):
+            time.sleep(waits[attempt])
     raise RuntimeError(last_err)
 
 
@@ -749,8 +752,26 @@ GATEWAY_MODE = os.environ.get('LLM_MODE', 'shadow')
 _last_source = 'cli'   # 마지막 분석 결과가 어디서 왔는지('cli'/'gateway') — 그림자 비교의 중복 호출 방지용
 
 
+_gateway_fail_streak = 0   # 게이트웨이 연속 실패 횟수 (성공하면 0으로)
+
+
 def _gateway_usable():
     return bool(_gateway_key()) and GATEWAY_MODE != 'off' and not _gateway_disabled
+
+
+def _gateway_failed(where, err):
+    """한 번 실패했다고 그날 전체를 포기하지 않고, 연속 3번 실패해야 이번 실행에서 끈다 (일시 오류 대비)."""
+    global _gateway_disabled, _gateway_fail_streak
+    _gateway_fail_streak += 1
+    print(f'  [게이트웨이] {where} 실패 ({_gateway_fail_streak}회 연속): {err}')
+    if _gateway_fail_streak >= 3:
+        _gateway_disabled = True
+        print('  [게이트웨이] 연속 3회 실패 → 이번 실행에서는 더 이상 시도하지 않습니다')
+
+
+def _gateway_succeeded():
+    global _gateway_fail_streak
+    _gateway_fail_streak = 0
 
 
 def _ask_claude(img_path, prompt, text_path=None, banner_path=None, extra_images=None):
@@ -760,11 +781,12 @@ def _ask_claude(img_path, prompt, text_path=None, banner_path=None, extra_images
     if _gateway_usable() and GATEWAY_MODE == 'primary':
         try:
             raw = _ask_gateway(img_path, prompt, text_path, banner_path, extra_images)
+            _gateway_succeeded()
             _last_source = 'gateway'
             return raw
         except Exception as e:
-            _gateway_disabled = True
-            print(f'  [게이트웨이] 호출 실패 → 이번 실행은 claude CLI로 폴백: {e}')
+            _gateway_failed('호출', e)
+            print('  [게이트웨이] → 이 호출은 claude CLI로 폴백합니다')
 
     cli_exc, raw = None, ''
     try:
@@ -780,11 +802,11 @@ def _ask_claude(img_path, prompt, text_path=None, banner_path=None, extra_images
         try:
             print('  [게이트웨이] CLI 결과가 없어 게이트웨이로 대신 분석합니다')
             raw2 = _ask_gateway(img_path, prompt, text_path, banner_path, extra_images)
+            _gateway_succeeded()
             _last_source = 'gateway'
             return raw2
         except Exception as e:
-            _gateway_disabled = True
-            print(f'  [게이트웨이] 대신 분석도 실패: {e}')
+            _gateway_failed('대신 분석', e)
     _last_source = 'cli'
     if cli_exc:
         raise cli_exc
@@ -797,10 +819,11 @@ def _shadow_run(img_path, prompt, text_path=None, banner_path=None, extra_images
     if GATEWAY_MODE != 'shadow' or _last_source != 'cli' or not _gateway_usable():
         return None
     try:
-        return parse_summary_text(_ask_gateway(img_path, prompt, text_path, banner_path, extra_images))
+        result = parse_summary_text(_ask_gateway(img_path, prompt, text_path, banner_path, extra_images))
+        _gateway_succeeded()
+        return result
     except Exception as e:
-        _gateway_disabled = True
-        print(f'  [그림자] 게이트웨이 호출 실패 → 이번 실행의 비교는 건너뜁니다: {e}')
+        _gateway_failed('그림자 비교', e)
         return None
 
 
@@ -1045,7 +1068,10 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '- 반드시 "M/DD ~ M/DD" 형식으로 작성 (예: 5/13 ~ 5/17)\n'
             '- 종료일만 알면 "~ M/DD" 형식으로 작성\n'
             '- 날짜를 전혀 확인할 수 없으면 기간 행 자체를 생략\n'
-            '- "상반기", "기간 미확인" 등 모호한 표현 절대 금지\n\n'
+            '- "상반기", "기간 미확인" 등 모호한 표현 절대 금지\n'
+            '- "다음 행사", "행사 오픈 알림", "행사알림", "알림 신청" 영역에 적힌 날짜는 다음 회차 일정이지 지금 행사의 기간이 아니므로 '
+            '기간으로 쓰지 마세요 (예: 메가딜데이 페이지의 "10.29 (목) 메가딜데이 행사알림"은 다음 주 회차). '
+            '매직딜데이·메가딜데이처럼 하루짜리 정기 행사는 기간을 캡처 날짜 하루로 쓰세요.\n\n'
             '혜택종류는 반드시 카드, 적립, 사은품, 경품, 할인, 특가, 쿠폰 중에서만 선택하세요. 그 외 표현(하루만혜택, 단독, 오늘만 등)은 특가로 통일하세요.\n'
             '같은 혜택 내용을 서로 다른 혜택종류로 중복해서 적지 마세요 (예: "출석체크 매일 100% 적립금"을 적립과 경품 둘 다에 넣는 것 금지). '
             '적립금을 주는 이벤트는 경품이 아니라 적립으로만 분류하세요. 각 혜택 내용은 가장 적절한 혜택종류 하나에만 한 번 적으세요.\n'
@@ -1093,15 +1119,12 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             # 현대: 혜택(body)이 없으면 단순 방송 홍보 → 해당없음 강제 처리
             if brand == 'hyundai' and not result.get('body', '').strip() and result.get('name', '').strip():
                 result = {'period': '', 'name': '해당없음', 'body': ''}
-            # 재시도까지 실패하면 직전 유효한 날짜의 데이터를 그대로 이어받는다 (빈 값 저장 금지).
+            # 재시도까지 실패하면 "요약 생성 실패"로 남긴다. 예전엔 직전 날짜 데이터를 이어받았지만
+            # 2026-10-22에 오래된 행사명(예: 이미 끝난 롯데 어썸어텀)이 오늘자로 게시되는 사고가 있었다.
+            # 실패로 남기면 분석 대기 목록에 올라 다음 실행(인증·장애 복구 후)에 자동으로 다시 분석된다.
             if not result.get('name', '').strip():
-                prev = _find_prev_valid_summary(archive_date_dir, brand)
-                if prev:
-                    result = prev
-                    print(f'{brand} 형식 오류(재시도 후에도) → 직전 유효 데이터로 대체: {prev.get("name")}')
-                else:
-                    result = {'period': '', 'name': '', 'body': '요약 생성 실패'}
-                    print(f'{brand} 형식 오류, 직전 데이터 없음 → 실패 처리')
+                result = {'period': '', 'name': '', 'body': '요약 생성 실패'}
+                print(f'{brand} 형식 오류(재시도 후에도) → 실패 처리 (다음 실행에서 재분석)')
             summaries[brand] = result
             shadow = _shadow_run(img_path, prompt, text_path, banner_path, extra_images=extra_images)
             if shadow:

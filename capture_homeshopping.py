@@ -3142,8 +3142,15 @@ def run_analyze_pending():
 def run_cloud_capture():
     """GitHub Actions용: 4개 쇼핑몰을 캡처해 captures/오늘/ 에 JPEG로 저장하고 커밋·push (분석은 안 함)."""
     import subprocess
-    rel = f'captures/{TODAY_KEY}'
-    archive_dir = os.path.join(ARCHIVE_DIR, TODAY_KEY)
+    # 수동 실행(Run workflow)은 시험 모드: 새 날짜 폴더(captures/cloudtest-날짜)에 만들어 실제 상황(PC가 꺼져
+    # 오늘 폴더가 없는 날)과 같게 시험하되, 업로드는 main 이 아니라 cloud-test 브랜치로만 한다.
+    # 자동(스케줄) 실행은 기존대로 captures/날짜 → main.
+    manual = os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
+    folder = f'cloudtest-{TODAY_KEY}' if manual else TODAY_KEY
+    rel = f'captures/{folder}'
+    archive_dir = os.path.join(ARCHIVE_DIR, folder)
+    if manual:
+        print('[시험 모드] 수동 실행 — main 은 건드리지 않고 cloud-test 브랜치로만 올립니다')
 
     def git(args):
         r = subprocess.run(['git', '-C', BASE_DIR] + args,
@@ -3156,7 +3163,7 @@ def run_cloud_capture():
     # 오늘 폴더가 이미 저장소에 있으면(보조 스케줄 중복 실행 등) 건너뜀
     git(['fetch', '--depth=1', 'origin', 'main'])
     _, listing = git(['ls-tree', '-r', '--name-only', 'origin/main', rel + '/'])
-    if '_next_tab_full.jpg' in listing:
+    if '_next_tab_full.jpg' in listing and not manual:
         print(f'{rel} 는 이미 저장소에 있어 건너뜁니다')
         return 0
 
@@ -3179,7 +3186,11 @@ def run_cloud_capture():
     git(['config', 'user.name', 'github-actions[bot]'])
     git(['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'])
     git(['add', '--sparse', rel])   # 클라우드 체크아웃은 captures/ 를 받지 않으므로 sparse 밖 경로 추가를 허용
-    git(['commit', '-m', f'Cloud capture: {TODAY_KEY}'])
+    git(['commit', '-m', f'Cloud capture: {folder}'])
+    if manual:   # 시험: cloud-test 브랜치로만 (main 에는 올리지 않음)
+        rc, _out = git(['push', '--force', 'origin', 'HEAD:refs/heads/cloud-test'])
+        print('[시험 모드] cloud-test 브랜치 push ' + ('완료' if rc == 0 else '실패'))
+        return 0 if rc == 0 else 1
     for _ in range(4):
         rc, _out = git(['push', 'origin', 'HEAD:main'])
         if rc == 0:

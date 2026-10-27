@@ -827,6 +827,80 @@ def _shadow_run(img_path, prompt, text_path=None, banner_path=None, extra_images
         return None
 
 
+def _normalize_period(period, capture_date=None, max_span_days=21):
+    """기간 문자열 정규화. 표기 흔들림(10.26 ~ 11.01, 2026.10.26, 10/24 ~ 10/24)을 'M/D ~ M/D'로 맞추고,
+    행사 길이로 보기 어려운 범위(max_span_days 초과)는 날짜 오독 가능성이 커서 빈 값으로 돌린다."""
+    from datetime import datetime
+    p = (period or '').strip()
+    if not p:
+        return ''
+    p = _re_module.sub(r'(?<!\d)(?:20)?\d{2}[./](\d{1,2})[./](\d{1,2})', r'\1/\2', p)   # 연도 제거
+    p = _re_module.sub(r'(\d{1,2})\.(\d{1,2})', r'\1/\2', p)
+    p = _re_module.sub(r'(?<!\d)0(\d)/', r'\1/', p)
+    p = _re_module.sub(r'/0(\d)(?!\d)', r'/\1', p)
+    mds = _re_module.findall(r'\d{1,2}/\d{1,2}', p)
+    if len(mds) == 2 and mds[0] == mds[1]:
+        return mds[0]
+    if len(mds) == 2 and capture_date:
+        try:
+            y = int(capture_date[:4])
+            (m1, d1), (m2, d2) = [tuple(map(int, x.split('/'))) for x in mds]
+            s, e = datetime(y, m1, d1), datetime(y, m2, d2)
+            if e < s:
+                e = datetime(y + 1, m2, d2)
+            if (e - s).days > max_span_days:
+                return ''
+        except ValueError:
+            return ''
+    return p
+
+
+def _prev_period_for(archive_date_dir, brand, name, max_back=10):
+    """같은 브랜드·같은 행사명(공백 무시)이 직전 날짜들에서 가졌던 기간(범위 형태)을 찾아 돌려준다."""
+    key = (name or '').replace(' ', '').lower()
+    cur = os.path.basename(archive_date_dir)
+    dates = sorted(d for d in (os.path.basename(p) for p in glob.glob(os.path.join(ARCHIVE_DIR, '????-??-??')))
+                   if d < cur)
+    for d in reversed(dates[-max_back:]):
+        try:
+            s = json.load(open(os.path.join(ARCHIVE_DIR, d, 'summary.json'), encoding='utf-8')).get(brand) or {}
+        except Exception:
+            continue
+        if (s.get('name') or '').replace(' ', '').lower() == key and \
+                _re_module.search(r'\d{1,2}/\d{1,2}\s*~\s*\d{1,2}/\d{1,2}', s.get('period') or ''):
+            return s['period']
+    return ''
+
+
+def _fix_gateway_result(archive_date_dir, brand, result):
+    """게이트웨이 결과 후처리: 기간 형식 정규화, 비정상 범위 제거, 비어 있으면 직전 날짜의 같은 행사 기간으로 보충."""
+    if not result:
+        return result
+    cap = os.path.basename(archive_date_dir)
+    result['period'] = _normalize_period(result.get('period'), cap)
+    if not result['period'] and result.get('name') and result['name'] != '해당없음':
+        result['period'] = _prev_period_for(archive_date_dir, brand, result['name'])
+    return result
+
+
+def _shadow_run_checked(archive_date_dir, brand, cli_result, *args, **kwargs):
+    """그림자 실행 + 이상 응답(이름 없음, 본문 없음, CLI는 행사를 찾았는데 '해당없음')이면 한 번 더 시도."""
+    result = _shadow_run(*args, **kwargs)
+    if result is None:
+        return None
+    def bad(r):
+        name, body = (r.get('name') or '').strip(), (r.get('body') or '').strip()
+        cli_name = (cli_result or {}).get('name', '')
+        return (not name or (not body and name != '해당없음')
+                or (name == '해당없음' and cli_name not in ('', '해당없음', '요약 생성 실패')))
+    if bad(result):
+        print(f'  [게이트웨이] {brand} 이상 응답({result.get("name")!r}) → 한 번 더 시도')
+        retry = _shadow_run(*args, **kwargs)
+        if retry and not bad(retry):
+            result = retry
+    return _fix_gateway_result(archive_date_dir, brand, result)
+
+
 def _gateway_reachable():
     import urllib.request
     try:
@@ -1125,8 +1199,11 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             if not result.get('name', '').strip():
                 result = {'period': '', 'name': '', 'body': '요약 생성 실패'}
                 print(f'{brand} 형식 오류(재시도 후에도) → 실패 처리 (다음 실행에서 재분석)')
+            if _last_source == 'gateway':      # 게이트웨이가 대신 분석한 경우도 같은 후처리를 거친다
+                result = _fix_gateway_result(archive_date_dir, brand, result)
             summaries[brand] = result
-            shadow = _shadow_run(img_path, prompt, text_path, banner_path, extra_images=extra_images)
+            shadow = _shadow_run_checked(archive_date_dir, brand, result, img_path, prompt, text_path, banner_path,
+                                         extra_images=extra_images)
             if shadow:
                 shadow_summaries[brand] = shadow
             print(f'{brand} 요약 완료')
@@ -1228,7 +1305,7 @@ def validate_periods(gap_days=21):
     return warned
 
 
-def consolidate_ongoing_events():
+def consolidate_ongoing_events(filename='summary.json'):
     """같은 행사가 여러 날 걸쳐 있을 때, 날짜별 캡처 품질 차이를 보완.
     동일 브랜드+start 날짜 기준으로 모든 날짜의 혜택 줄을 통합해
     가장 완전한 요약본으로 전체 날짜를 일괄 업데이트한다.
@@ -1239,7 +1316,7 @@ def consolidate_ongoing_events():
     all_summaries = {}  # {date: {brand: {...}}}
     for d in sorted(glob.glob(os.path.join(ARCHIVE_DIR, '????-??-??'))):
         date_key = os.path.basename(d)
-        path = os.path.join(d, 'summary.json')
+        path = os.path.join(d, filename)
         if not os.path.exists(path):
             continue
         try:
@@ -1420,7 +1497,7 @@ def consolidate_ongoing_events():
             )
             if not needs_update:
                 continue
-            path = os.path.join(ARCHIVE_DIR, date, 'summary.json')
+            path = os.path.join(ARCHIVE_DIR, date, filename)
             try:
                 with open(path, encoding='utf-8') as f:
                     s = json.load(f)
@@ -3123,7 +3200,7 @@ def run_analyze_pending():
                 json.dump(sentinel, f, ensure_ascii=False, indent=2)
     TODAY_KEY = real_today
 
-    for label, fn in (('진행 중 행사 요약 통합', consolidate_ongoing_events), ('기간 날짜 오독 검증', validate_periods)):
+    for label, fn in (('진행 중 행사 요약 통합', consolidate_ongoing_events), ('게이트웨이 비교본 통합', lambda: consolidate_ongoing_events('summary_gateway.json')), ('기간 날짜 오독 검증', validate_periods)):
         print(f'{label} 중...')
         try:
             fn()
@@ -3324,6 +3401,10 @@ if __name__ == '__main__':
         consolidate_ongoing_events()
     except Exception as e:
         print(f'consolidate 실패: {e}')
+    try:
+        consolidate_ongoing_events('summary_gateway.json')
+    except Exception as e:
+        print(f'게이트웨이 비교본 통합 실패: {e}')
 
     print('기간(period) 날짜 오독 검증 중...')
     try:

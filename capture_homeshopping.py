@@ -1074,6 +1074,30 @@ def _find_prev_valid_summary(archive_date_dir, brand, max_back=10):
     return None
 
 
+USE_PREV_HINT = os.environ.get('PROMO_PREV_HINT', '0') == '1'   # 직전 날짜 결과를 참고 힌트로 제공
+
+
+def _prev_day_hint(archive_date_dir, brand, max_back=3):
+    """직전(최대 max_back일 전) 날짜의 같은 채널 요약에서 행사명·기간을 꺼내 프롬프트 힌트로 만든다.
+    이어지는 행사의 이름·기간 흔들림을 줄이되, 이미지가 다르면 이미지를 따르게 한다."""
+    cur = os.path.basename(archive_date_dir)
+    dates = sorted(d for d in (os.path.basename(p) for p in glob.glob(os.path.join(ARCHIVE_DIR, '????-??-??')))
+                   if d < cur)
+    for d in reversed(dates[-max_back:]):
+        try:
+            s = json.load(open(os.path.join(ARCHIVE_DIR, d, 'summary.json'), encoding='utf-8')).get(brand) or {}
+        except Exception:
+            continue
+        name = (s.get('name') or '').strip()
+        if not name or name in ('해당없음', '요약 생성 실패') or '인증 오류' in name:
+            continue
+        return (f'\n\n[참고: {d}({brand}) 분석 결과 — 프로모션명: {name} / 기간: {s.get("period") or "미확인"}]\n'
+                '오늘 이미지·텍스트가 같은 행사로 보이면 위 프로모션명(표기 포함)과 기간을 그대로 이어 쓰세요. '
+                '하지만 오늘 이미지에서 행사명·기간이 다르게 확인되면 반드시 오늘 이미지를 따르세요. '
+                '위 결과는 틀렸을 수 있으므로 혜택 내용은 참고하지 말고 오늘 이미지·텍스트에서만 추출하세요.')
+    return ''
+
+
 def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
     """캡처 이미지를 claude CLI로 분석해 행사 요약 생성 (그림자 모드면 게이트웨이 결과도 비교용으로 따로 저장)"""
     summaries = {}
@@ -1167,6 +1191,8 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             '예) "6.1-6.2 리빙, 6.3-6.4 식품" 형식이면 해당 날짜의 카테고리만 기재.\n'
             '브랜드를 개별 나열하지 말고 최대 혜택값과 대표 브랜드 2~3개만 표기하세요. 혜택 줄 수는 최대 5줄.'
         )
+        if USE_PREV_HINT:
+            prompt += _prev_day_hint(archive_date_dir, brand)
         text_path   = img_path.replace('_next_tab_full.jpg', '_page_text.txt')
         banner_path = img_path.replace('_next_tab_full.jpg', '_banner.jpg')
         extra_images = []
@@ -1241,6 +1267,54 @@ def _clean_card_detail(detail: str) -> str:
     cleaned = _CARD_NAMES.sub('카드 ', detail).strip()
     cleaned = _re_module.sub(r'카드\s+카드', '카드', cleaned).strip()
     return cleaned
+
+
+REVIEW_LOOKBACK_DAYS = 7
+
+
+def _cmp_name(n):
+    n = _re_module.sub(r'\(.*?\)', '', n or '')
+    n = _re_module.sub(r'^(GS샵?|CJ온스타일|롯데홈쇼핑|현대홈쇼핑|현대Hmall)\s*', '', n.strip(), flags=_re_module.IGNORECASE)
+    n = _re_module.sub(r'^\d{2}(FW|SS)\s+', '', n, flags=_re_module.IGNORECASE)
+    return n.replace(' ', '').lower()
+
+
+def write_reviews():
+    """CLI(summary.json)와 게이트웨이(summary_gateway.json) 결과를 비교해 서로 다른 항목을 review.json 으로 남긴다.
+    프로모션명·기간이 일치하면 이중 확인된 것으로 보고, 어긋난 것만 사람이 볼 목록이 된다. 사이트에는 쓰이지 않는다."""
+    from datetime import datetime, timedelta
+    limit = (datetime.now() - timedelta(days=REVIEW_LOOKBACK_DAYS)).strftime('%Y-%m-%d')
+    total = 0
+    for d in sorted(glob.glob(os.path.join(ARCHIVE_DIR, '????-??-??'))):
+        date = os.path.basename(d)
+        if date < limit:
+            continue
+        pa, pb, out = (os.path.join(d, 'summary.json'), os.path.join(d, 'summary_gateway.json'),
+                       os.path.join(d, 'review.json'))
+        if not (os.path.exists(pa) and os.path.exists(pb)):
+            continue
+        try:
+            cli, gw = json.load(open(pa, encoding='utf-8')), json.load(open(pb, encoding='utf-8'))
+        except Exception:
+            continue
+        issues = []
+        for brand, g in gw.items():
+            c = cli.get(brand) or {}
+            if not (c.get('name') or '').strip() or '인증 오류' in c.get('name', '') or c.get('name') == '요약 생성 실패':
+                continue
+            if _cmp_name(c.get('name')) != _cmp_name(g.get('name')):
+                issues.append({'brand': brand, 'field': 'name', 'cli': c.get('name'), 'gateway': g.get('name')})
+            pc, pg = _normalize_period(c.get('period')), _normalize_period(g.get('period'))
+            if pc and pg and pc != pg:
+                issues.append({'brand': brand, 'field': 'period', 'cli': pc, 'gateway': pg})
+        if issues:
+            with open(out, 'w', encoding='utf-8') as f:
+                json.dump(issues, f, ensure_ascii=False, indent=2)
+            total += len(issues)
+        elif os.path.exists(out):
+            os.remove(out)
+    print(f'[교차검증] 확인 필요 {total}건' + (' → captures/<날짜>/review.json 참고' if total else ''))
+    return total
 
 
 def validate_periods(gap_days=21):
@@ -3062,6 +3136,7 @@ def git_push(archive_date_dir):
             f'{rel}/lotte_next_tab_full.jpg',   f'{rel}/lotte_banner.jpg',   f'{rel}/lotte_page_text.txt',
             f'{rel}/summary.json',
             f'{rel}/summary_gateway.json',
+            f'{rel}/review.json',
             f'{rel}/tab_names.json',
         ]
     files_to_add = [f for f in candidates if os.path.exists(os.path.join(BASE_DIR, f.replace('/', os.sep)))]
@@ -3200,7 +3275,7 @@ def run_analyze_pending():
                 json.dump(sentinel, f, ensure_ascii=False, indent=2)
     TODAY_KEY = real_today
 
-    for label, fn in (('진행 중 행사 요약 통합', consolidate_ongoing_events), ('게이트웨이 비교본 통합', lambda: consolidate_ongoing_events('summary_gateway.json')), ('기간 날짜 오독 검증', validate_periods)):
+    for label, fn in (('진행 중 행사 요약 통합', consolidate_ongoing_events), ('게이트웨이 비교본 통합', lambda: consolidate_ongoing_events('summary_gateway.json')), ('CLI·게이트웨이 교차검증', write_reviews), ('기간 날짜 오독 검증', validate_periods)):
         print(f'{label} 중...')
         try:
             fn()
@@ -3405,6 +3480,10 @@ if __name__ == '__main__':
         consolidate_ongoing_events('summary_gateway.json')
     except Exception as e:
         print(f'게이트웨이 비교본 통합 실패: {e}')
+    try:
+        write_reviews()
+    except Exception as e:
+        print(f'교차검증 실패: {e}')
 
     print('기간(period) 날짜 오독 검증 중...')
     try:

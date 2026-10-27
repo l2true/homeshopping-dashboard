@@ -556,7 +556,8 @@ GATEWAY_EXTRA_PROMPT = '''
 '''
 # 최종 호출에 배너 아래 상단 영역을 원본 해상도 조각 N장으로 추가. 이미지 1장을 sonnet은 ~4,800토큰으로 미리 계산하고
 # 요청당 한도가 ~30,000토큰이라 배너 1장 + 이 값 2장까지가 안전하다 (3~4장이면 한도 근처).
-GATEWAY_TOP_SLICES = 2
+GATEWAY_TOP_SLICES = int(os.environ.get('LLM_TOP_SLICES', '2'))
+GATEWAY_VERIFY = os.environ.get('LLM_VERIFY', '0') == '1'   # 1차 요약을 같은 입력으로 한 번 더 검증(근거 없는 줄 삭제)
 
 
 def _gateway_key():
@@ -694,8 +695,23 @@ def _ask_gateway(img_path, prompt, text_path=None, banner_path=None, extra_image
         if extra_path and os.path.exists(extra_path):
             content += _gateway_image_blocks(extra_path, label)
     content.append({'type': 'text', 'text': prompt + GATEWAY_EXTRA_PROMPT})
-    return _gateway_chat(GATEWAY_MODEL, content, max_tokens=8000,   # 추론 토큰도 출력 한도에 포함되므로 넉넉히
-                         reasoning_effort=GATEWAY_REASONING_EFFORT or None)
+    first = _gateway_chat(GATEWAY_MODEL, content, max_tokens=8000,   # 추론 토큰도 출력 한도에 포함되므로 넉넉히
+                          reasoning_effort=GATEWAY_REASONING_EFFORT or None)
+    if not GATEWAY_VERIFY or '프로모션명:' not in first:
+        return first
+    # 검증 패스: 같은 입력을 보여주고 1차 요약의 각 줄이 이미지·텍스트에 실제로 있는지 확인, 근거 없는 줄만 삭제한다.
+    # 새 항목을 추가하거나 값을 고치지 못하게 해서 검증이 오히려 환각을 만들지 않도록 한다.
+    verify = content[:-1] + [{'type': 'text', 'text':
+        '[1차 요약 결과]\n' + first + '\n\n위 1차 요약의 "각 줄"이 위 이미지·페이지 텍스트에 실제로 있는 내용인지 하나씩 확인하세요. '
+        '근거를 찾을 수 없거나 특정 브랜드 하나에만 해당하는 혜택(사은품·할인)이면 그 줄만 삭제하세요. '
+        '근거가 확인된 줄은 문구 그대로 두고, 새 줄을 추가하거나 값을 바꾸지 마세요. '
+        '프로모션명·기간은 이미지에서 확인되면 그대로 두고, 확인이 안 되면 기간은 비워 두세요. '
+        '출력은 1차 요약과 같은 형식(기간:/프로모션명:/혜택:)으로만, 설명 없이 쓰세요.'}]
+    try:
+        second = _gateway_chat(GATEWAY_MODEL, verify, max_tokens=8000, reasoning_effort=GATEWAY_REASONING_EFFORT or None)
+        return second if '프로모션명:' in second else first
+    except Exception:
+        return first
 
 
 def _ask_claude_cli(img_path, prompt, text_path=None, banner_path=None, extra_images=None):

@@ -477,12 +477,35 @@ def run_lotte(browser, archive_dir):
     return tab_name
 
 
+BLOCK_MARKERS = ['접속 정보를 확인', '봇 확인', '봇(Bot)', 'Access Denied', 'Just a moment', '접속이 잠시 제한', '비정상적인 접근']
+
+
+def assert_not_blocked(page, name, min_text=800):
+    """봇 차단·확인 화면이면 예외를 올려 캡처를 실패 처리한다 (차단 화면을 정상 캡처로 저장해 엉뚱하게 요약하는 것 방지).
+    GitHub Actions 같은 클라우드 IP에서는 일부 쇼핑몰이 이런 화면을 보여준다."""
+    try:
+        text = page.inner_text('body')
+    except Exception:
+        text = ''
+    if len(text.strip()) < min_text or any(m in text[:600] for m in BLOCK_MARKERS):
+        raise RuntimeError(f'{name}: 차단/확인 화면으로 보여 캡처하지 않습니다 (본문 {len(text.strip())}자)')
+
+
 def run_oliveyoung(browser, archive_dir):
     """올리브영(뷰티 버티컬) 메인 캡처. 홈쇼핑과 달리 탭 이동 없이 메인 화면의 행사 배너·기획전 영역을 본다."""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
     page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
     page.goto('https://www.oliveyoung.co.kr/store/main/main.do', wait_until='domcontentloaded', timeout=45000)
     page.wait_for_timeout(4000)
+    try:
+        assert_not_blocked(page, '올리브영')
+    except RuntimeError:
+        page.wait_for_timeout(6000)   # 보안 확인 화면은 잠시 뒤 통과되는 경우가 있어 한 번 더 기다려 본다
+        try:
+            assert_not_blocked(page, '올리브영')
+        except Exception:
+            page.close()
+            raise
     # 서비스 전환 서랍·Braze 앱내 메시지(하단 시트, 딤 레이어)가 화면을 덮고 스크롤을 잠근다
     for _ in range(3):
         page.evaluate("""() => {
@@ -527,6 +550,11 @@ def run_st11(browser, archive_dir):
     page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
     page.goto('https://m.11st.co.kr/page/main/home', wait_until='domcontentloaded', timeout=45000)
     page.wait_for_timeout(4000)
+    try:
+        assert_not_blocked(page, '11번가')
+    except Exception:
+        page.close()
+        raise
     for _ in range(2):   # 앱 설치 유도 하단 시트: 텍스트 정확 일치 클릭이 안 먹는 경우가 있어 DOM에서 직접 누른다
         page.evaluate("""() => {
             [...document.querySelectorAll('body *')].filter(e => e.children.length === 0 && e.innerText &&

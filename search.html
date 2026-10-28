@@ -16,7 +16,7 @@
     .top-nav a:hover { background: #fdf1e9; color: #e2541f; }
     .top-nav a.active { background: #e2541f; color: white; }
     .header-right { font-size: 11px; color: #888; }
-    .header-bar { height: 3px; background: linear-gradient(to right, #9dc3e8 25%, #cdb3e6 25% 50%, #e8a9a9 50% 75%, #efc199 75%); position: sticky; top: 57px; z-index: 99; }
+    .header-bar { height: 3px; background: linear-gradient(to right, #9dc3e8 0.0% 16.67%, #cdb3e6 16.67% 33.33%, #e8a9a9 33.33% 50.0%, #efc199 50.0% 66.67%, #5a9a3b 66.67% 83.33%, #2a9aa5 83.33% 100.0%); position: sticky; top: 57px; z-index: 99; }
     .wrap { padding: 20px 24px 60px; max-width: 1080px; margin: 0 auto; }
     .panel { background: white; border-radius: 14px; padding: 18px 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 18px; }
     .prow { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -109,12 +109,7 @@
   const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   
   const DAY = 86400000;
-  const channels = [
-    {key:'gs',      label:'GS SHOP',   color:'#3b82c4', soft:'#e8f1fb'},
-    {key:'cj',      label:'CJ온스타일', color:'#9b6fc0', soft:'#f3ecfb'},
-    {key:'lotte',   label:'롯데홈쇼핑', color:'#d05a5a', soft:'#fbeaea'},
-    {key:'hyundai', label:'현대홈쇼핑', color:'#e08a4a', soft:'#fcefe2'},
-  ];
+  const channels = [{"key": "gs", "label": "GS SHOP", "group": "홈쇼핑", "color": "#3b82c4", "soft": "#e8f1fb"}, {"key": "cj", "label": "CJ온스타일", "group": "홈쇼핑", "color": "#9b6fc0", "soft": "#f3ecfb"}, {"key": "lotte", "label": "롯데홈쇼핑", "group": "홈쇼핑", "color": "#d05a5a", "soft": "#fbeaea"}, {"key": "hyundai", "label": "현대홈쇼핑", "group": "홈쇼핑", "color": "#e08a4a", "soft": "#fcefe2"}, {"key": "oliveyoung", "label": "올리브영", "group": "뷰티·버티컬", "color": "#5a9a3b", "soft": "#eaf5e3"}, {"key": "st11", "label": "11번가", "group": "오픈마켓", "color": "#2a9aa5", "soft": "#e3f4f5"}];   // 채널 설정(키·표시명·그룹·색) — 파이썬 CHANNEL_META 에서 주입
   const DOW = ['일','월','화','수','목','금','토'];
   const TYPES = ['카드','적립','쿠폰','할인','특가','경품','사은품'];
   const TYPE_COLORS = {'카드':'#1d4ed8','적립':'#059669','쿠폰':'#db2777','할인':'#c2410c','특가':'#854d0e','경품':'#6d28d9','사은품':'#15803d'};
@@ -178,10 +173,10 @@
   }
 
   // summaries → 채널별 이벤트 목록 (간트 막대 단위)
-  const events = {gs:[], cj:[], lotte:[], hyundai:[]};
+  const events = {}; channels.forEach(c => { events[c.key] = []; });
   (function buildEvents(){
     const dates = Object.keys(summaries).sort();
-    const byCh = {gs:{}, cj:{}, lotte:{}, hyundai:{}};
+    const byCh = {}; channels.forEach(c => { byCh[c.key] = {}; });
     dates.forEach(date => {
       const day = summaries[date] || {};
       channels.forEach(ch => {
@@ -291,7 +286,7 @@
   function buildCompanyFilters(){
     const box = document.getElementById('company-filters');
     box.innerHTML = channels.map(ch =>
-      `<span class="chip${state.ch.has(ch.key)?' active':''}" data-ch="${ch.key}" onclick="toggleCh('${ch.key}')">${ch.label}</span>`
+      `<span class="chip${state.ch.has(ch.key)?' active':''}" data-ch="${ch.key}" onclick="toggleCh('${ch.key}')" style="${state.ch.has(ch.key)?`background:${ch.color}`:''}">${ch.label}</span>`
     ).join('');
   }
   function buildBenefitFilters(){

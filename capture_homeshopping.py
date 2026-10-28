@@ -477,6 +477,106 @@ def run_lotte(browser, archive_dir):
     return tab_name
 
 
+def run_oliveyoung(browser, archive_dir):
+    """올리브영(뷰티 버티컬) 메인 캡처. 홈쇼핑과 달리 탭 이동 없이 메인 화면의 행사 배너·기획전 영역을 본다."""
+    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
+    page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
+    page.goto('https://www.oliveyoung.co.kr/store/main/main.do', wait_until='domcontentloaded', timeout=45000)
+    page.wait_for_timeout(4000)
+    # 서비스 전환 서랍·Braze 앱내 메시지(하단 시트, 딤 레이어)가 화면을 덮고 스크롤을 잠근다
+    for _ in range(3):
+        page.evaluate("""() => {
+            const L = ['닫기', '오늘 하루 보지 않기'];
+            [...document.querySelectorAll('body *')].filter(e => e.children.length === 0 && e.innerText && L.includes(e.innerText.trim()))
+                .forEach(e => e.click());
+        }""")
+        page.wait_for_timeout(1000)
+    page.evaluate("""() => {
+        document.querySelectorAll('.ab-iam-root, .ab-ios-scroll-wrapper, [class*=ThemeDrawerV3Dim]').forEach(e => e.remove());
+        document.body.classList.remove('ab-pause-scrolling');
+    }""")
+    # 본문은 메인 스와이퍼 안쪽에서만 스크롤되므로, 높이 제한을 풀어 전체 길이로 펼친다
+    total_h = page.evaluate("""() => {
+        let e = document.getElementById('main-inner-swiper-home');
+        while (e && e !== document.documentElement) {
+            e.style.setProperty('height', 'auto', 'important');
+            e.style.setProperty('max-height', 'none', 'important');
+            e.style.setProperty('overflow', 'visible', 'important');
+            e = e.parentElement;
+        }
+        document.body.style.setProperty('overflow', 'visible', 'important');
+        document.documentElement.style.setProperty('overflow', 'visible', 'important');
+        return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+    }""") or 6000
+    page.wait_for_timeout(800)
+    page.set_viewport_size({'width': VIEWPORT['width'], 'height': min(int(total_h), 6000)})
+    page.wait_for_timeout(1500)
+    page.evaluate("window.scrollTo(0, 0)")
+    page.screenshot(path=os.path.join(archive_dir, 'oliveyoung_next_tab_full.png'),
+                    full_page=False, timeout=60000, animations='disabled')
+    page.set_viewport_size(VIEWPORT)
+    capture_banner(page, os.path.join(archive_dir, 'oliveyoung_banner.png'))
+    save_page_text(page, os.path.join(archive_dir, 'oliveyoung_page_text.txt'))
+    page.close()
+    return '메인'
+
+
+def run_st11(browser, archive_dir):
+    """11번가(오픈마켓) 메인 캡처. 앱 설치 유도 시트·상단 앱 배너를 닫고 메인 상단(행사 배너·혜택 바로가기)을 본다."""
+    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
+    page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
+    page.goto('https://m.11st.co.kr/page/main/home', wait_until='domcontentloaded', timeout=45000)
+    page.wait_for_timeout(4000)
+    for _ in range(2):   # 앱 설치 유도 하단 시트: 텍스트 정확 일치 클릭이 안 먹는 경우가 있어 DOM에서 직접 누른다
+        page.evaluate("""() => {
+            [...document.querySelectorAll('body *')].filter(e => e.children.length === 0 && e.innerText &&
+                ['모바일 웹으로 볼래요', '닫기'].includes(e.innerText.trim())).forEach(e => e.click());
+        }""")
+        page.wait_for_timeout(800)
+    page.evaluate("""() => {
+        document.querySelectorAll('[class*=dim], [class*=Dim], [class*=overlay]').forEach(e => {
+            const cs = getComputedStyle(e);
+            if (cs.position === 'fixed' && e.getBoundingClientRect().height > 300) e.remove();
+        });
+        document.body.style.removeProperty('overflow');
+    }""")
+    scroll_to_load(page)
+    capture_full(page, os.path.join(archive_dir, 'st11_next_tab_full.png'), max_height=8000)
+    capture_banner(page, os.path.join(archive_dir, 'st11_banner.png'))
+    save_page_text(page, os.path.join(archive_dir, 'st11_page_text.txt'))
+    page.close()
+    return '메인'
+
+
+OLIVEYOUNG_PROMPT_EXTRA = (
+    '올리브영은 홈쇼핑이 아니라 뷰티 버티컬 쇼핑몰이고, 이 캡처는 메인 화면입니다. '
+    '상단 탭(세일·기획전·이벤트)·상단 큰 행사 배너·기획전 영역에서, 사이트 전체 차원의 대표 행사 하나를 프로모션명으로 쓰세요 '
+    '(예: 올리브 데이, 올영세일, 올영신상위크, 브랜드위크). '
+    '특정 브랜드 광고 배너(예: "OO 방지민 포카 증정", "라운드랩 단독 증정"), 상품 카드의 가격·할인율·브랜드별 증정은 대표 행사가 아니므로 제외하세요. '
+    '"단 3일"처럼 일수만 있고 날짜가 없으면 기간은 비워 두고, 날짜를 추측하지 마세요. '
+    '혜택은 행사 자체의 쿠폰·적립·할인·결제혜택·멤버십 혜택만 쓰세요. 사이트 전체 차원의 대표 행사가 보이지 않으면 프로모션명을 "해당없음"으로 쓰고 혜택은 생략하세요.'
+)
+ST11_PROMPT_EXTRA = (
+    '11번가는 오픈마켓이고, 이 캡처는 메인 화면입니다. '
+    '상단 행사 배너·바로가기 아이콘(예: ~7만원혜택, 쿠폰/출첵, 1만원쿠폰)·가로 배너(예: 그랜드십일절 예약구매)·쇼킹딜 영역에서 '
+    '사이트 전체 차원의 대표 행사 하나를 프로모션명으로 쓰세요 (예: 그랜드십일절). '
+    '"AD"가 붙은 광고 상품, 검색창 안의 추천 문구, 실시간 쇼검·랭킹·상품 카드의 가격·할인율은 행사가 아니므로 제외하세요. '
+    '"단 3일"처럼 날짜 없이 일수만 있으면 기간은 비워 두세요. '
+    '혜택은 행사 자체의 쿠폰·적립·할인·카드/페이 혜택만 쓰세요. 사이트 전체 차원의 대표 행사가 보이지 않으면 프로모션명을 "해당없음"으로 쓰고 혜택은 생략하세요.'
+)
+
+# 홈쇼핑 4사 외에 추가로 보는 채널. 새 채널은 여기에 한 줄 + run_* 캡처 함수만 추가하면 캡처·분석·화면에 모두 반영된다.
+# key: 파일명·summary.json 키 / group: 화면의 채널 묶음 / color·soft: 캘린더·카드 색
+EXTRA_CHANNELS = [
+    {'key': 'oliveyoung', 'label': '올리브영', 'group': '뷰티·버티컬', 'color': '#5a9a3b', 'soft': '#eaf5e3',
+     'url': 'https://www.oliveyoung.co.kr', 'icon': '🌿', 'run': run_oliveyoung, 'extra': OLIVEYOUNG_PROMPT_EXTRA},
+    {'key': 'st11', 'label': '11번가', 'group': '오픈마켓', 'color': '#2a9aa5', 'soft': '#e3f4f5',
+     'url': 'https://m.11st.co.kr', 'icon': '🛒', 'run': run_st11, 'extra': ST11_PROMPT_EXTRA},
+]
+CORE_BRANDS = ['hyundai', 'gs', 'cj', 'lotte']
+ALL_BRANDS = CORE_BRANDS + [c['key'] for c in EXTRA_CHANNELS]
+
+
 def get_archive_dates():
     """captures/ 아래 날짜 폴더 목록 (내림차순)"""
     folders = sorted(
@@ -1129,16 +1229,17 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
         ('gs',      'gs_next_tab_full.jpg',      gs_tab      or 'GS SHOP',    ''),
         ('cj',      'cj_next_tab_full.jpg',       cj_tab      or 'CJ온스타일', ''),
         ('lotte',   'lotte_next_tab_full.jpg',    lotte_tab   or '롯데홈쇼핑', ''),
-    ]:
+    ] + [(c['key'], f"{c['key']}_next_tab_full.jpg", c['label'], c['extra']) for c in EXTRA_CHANNELS]:
         if brand in summaries:  # 이미 처리된 경우(브랜드탭 등) 건너뜀
             continue
         img_path = os.path.join(archive_date_dir, filename)
         if not os.path.exists(img_path):
-            summaries[brand] = {'period': '', 'name': '', 'body': '이미지 없음'}
-            continue
+            if brand in CORE_BRANDS:
+                summaries[brand] = {'period': '', 'name': '', 'body': '이미지 없음'}
+            continue   # 추가 채널은 그날 캡처가 없으면 항목 자체를 만들지 않는다(화면에서도 숨김)
         capture_date_str = os.path.basename(archive_date_dir)  # YYYY-MM-DD
         prompt = (
-            f'{label} 홈쇼핑 모바일 캡처본입니다. 캡처 날짜: {capture_date_str}\n'
+            f'{label} {"홈쇼핑 모바일" if brand in CORE_BRANDS else "모바일 메인 화면"} 캡처본입니다. 캡처 날짜: {capture_date_str}\n'
             '텍스트 원문을 우선 참고하되, 텍스트에 없더라도 이미지에서 명확히 보이는 혜택(사은품, 쿠폰, 적립 등)은 반드시 함께 추출하세요.\n\n'
             + (extra + '\n\n' if extra else '') +
             '규칙:\n'
@@ -1338,7 +1439,7 @@ def validate_periods(gap_days=21):
     날짜 오독(예: 6/24를 8/24로 읽음) 가능성이 높으므로 로그에 경고를 남긴다.
     자동 수정은 하지 않는다 (실제로 긴 행사일 수 있으므로 사람이 확인)."""
     from datetime import datetime, timedelta
-    chans = ['hyundai', 'gs', 'cj', 'lotte']
+    chans = ALL_BRANDS
     appear = {}   # (ch, name) -> [dates]
     rows = {}     # date -> data
     for d in sorted(glob.glob(os.path.join(ARCHIVE_DIR, '????-??-??'))):
@@ -1671,15 +1772,28 @@ def _s(brand_data, key, fallback=''):
     return brand_data.get(key, fallback)
 
 
+CORE_CHANNEL_META = [
+    {'key': 'gs',      'label': 'GS SHOP',   'group': '홈쇼핑', 'color': '#3b82c4', 'soft': '#e8f1fb'},
+    {'key': 'cj',      'label': 'CJ온스타일', 'group': '홈쇼핑', 'color': '#9b6fc0', 'soft': '#f3ecfb'},
+    {'key': 'lotte',   'label': '롯데홈쇼핑', 'group': '홈쇼핑', 'color': '#d05a5a', 'soft': '#fbeaea'},
+    {'key': 'hyundai', 'label': '현대홈쇼핑', 'group': '홈쇼핑', 'color': '#e08a4a', 'soft': '#fcefe2'},
+]
+CHANNEL_META = CORE_CHANNEL_META + [{k: c[k] for k in ('key', 'label', 'group', 'color', 'soft')} for c in EXTRA_CHANNELS]
+# 화면 상단 가로줄(채널별 색 띠)
+BAR_COLORS_STRONG = ['#1565c0', '#7b1fa2', '#c62828', '#e65100'] + [c['color'] for c in EXTRA_CHANNELS]
+BAR_COLORS_SOFT = ['#9dc3e8', '#cdb3e6', '#e8a9a9', '#efc199'] + [c['color'] for c in EXTRA_CHANNELS]
+
+
+def _header_bar_css(colors):
+    n = len(colors)
+    return 'linear-gradient(to right, ' + ', '.join(
+        f'{c} {round(i * 100 / n, 2)}% {round((i + 1) * 100 / n, 2)}%' for i, c in enumerate(colors)) + ')'
+
+
 # 편성표/검색 페이지가 공유하는 이벤트 병합 엔진 (JS). 두 페이지가 항상 동일한 로직으로 events를 계산하도록 한 곳에서만 정의한다.
 EVENT_ENGINE_JS = r'''
   const DAY = 86400000;
-  const channels = [
-    {key:'gs',      label:'GS SHOP',   color:'#3b82c4', soft:'#e8f1fb'},
-    {key:'cj',      label:'CJ온스타일', color:'#9b6fc0', soft:'#f3ecfb'},
-    {key:'lotte',   label:'롯데홈쇼핑', color:'#d05a5a', soft:'#fbeaea'},
-    {key:'hyundai', label:'현대홈쇼핑', color:'#e08a4a', soft:'#fcefe2'},
-  ];
+  const channels = __CHANNELS_JSON__;   // 채널 설정(키·표시명·그룹·색) — 파이썬 CHANNEL_META 에서 주입
   const DOW = ['일','월','화','수','목','금','토'];
   const TYPES = ['카드','적립','쿠폰','할인','특가','경품','사은품'];
   const TYPE_COLORS = {'카드':'#1d4ed8','적립':'#059669','쿠폰':'#db2777','할인':'#c2410c','특가':'#854d0e','경품':'#6d28d9','사은품':'#15803d'};
@@ -1743,10 +1857,10 @@ EVENT_ENGINE_JS = r'''
   }
 
   // summaries → 채널별 이벤트 목록 (간트 막대 단위)
-  const events = {gs:[], cj:[], lotte:[], hyundai:[]};
+  const events = {}; channels.forEach(c => { events[c.key] = []; });
   (function buildEvents(){
     const dates = Object.keys(summaries).sort();
-    const byCh = {gs:{}, cj:{}, lotte:{}, hyundai:{}};
+    const byCh = {}; channels.forEach(c => { byCh[c.key] = {}; });
     dates.forEach(date => {
       const day = summaries[date] || {};
       channels.forEach(ch => {
@@ -1833,13 +1947,19 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     .top-nav a:hover { background: #fdf1e9; color: #e2541f; }
     .top-nav a.active { background: #e2541f; color: white; }
     .header-right { font-size: 11px; color: #888; }
-    .header-bar { height: 3px; background: linear-gradient(to right, #9dc3e8 25%, #cdb3e6 25% 50%, #e8a9a9 50% 75%, #efc199 75%); position: sticky; top: 57px; z-index: 99; }
+    .header-bar { height: 3px; background: __HEADER_BAR_SOFT__; position: sticky; top: 57px; z-index: 99; }
     .sched-wrap { padding: 20px; }
     .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
     .filters .flabel { font-size: 12px; font-weight: 700; color: #999; margin-right: 4px; }
     .fchip { font-size: 12px; font-weight: 700; color: #666; background: white; border: 1px solid #e0e4ff; padding: 7px 14px; border-radius: 20px; cursor: pointer; transition: all 0.15s; }
     .fchip:hover { background: #f0f4ff; }
     .fchip.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+    .fsep { width: 1px; height: 20px; background: #e0e4ff; margin: 0 4px; }
+    .chchip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #aaa; background: white; border: 1px solid #e0e4ff; padding: 6px 12px; border-radius: 20px; cursor: pointer; transition: all 0.15s; text-decoration: line-through; }
+    .chchip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; opacity: 0.35; }
+    .chchip.on { text-decoration: none; }
+    .chchip.on i { opacity: 1; }
+    .chchip:hover { filter: brightness(0.97); }
     .week-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 18px; position: relative; }
     .week-nav button { background: white; border: 1px solid #e0e4ff; color: #444; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s; }
     .week-nav button:hover { background: #f0f4ff; }
@@ -1940,6 +2060,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
 </header>
 <div class="header-bar"></div>
 <div class="sched-wrap">
+  <div class="filters" id="ch-filters"></div>
   <div class="filters" id="filters">
     <span class="flabel">혜택 필터</span>
   </div>
@@ -1969,6 +2090,38 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   // 생성 시점 날짜에 고정되지 않도록 브라우저의 실제 오늘 날짜를 사용
   const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   __EVENT_ENGINE__
+
+  // 채널 보기 필터 (선택은 브라우저에 기억)
+  const HAS = new Set(channels.filter(c => (events[c.key] || []).length).map(c => c.key));   // 행사가 한 번이라도 잡힌 채널만 다룬다
+  const LIVE = channels.filter(c => HAS.has(c.key));
+  const GROUPS = [...new Set(LIVE.map(c => c.group))];
+  let _hidden = (() => { try { return new Set(JSON.parse(localStorage.getItem('promo.hiddenCh') || '[]')); } catch(e) { return new Set(); } })();
+  if(LIVE.every(c => _hidden.has(c.key))) _hidden = new Set();   // 전부 숨겨진 상태로 저장된 경우 복구
+  function saveHidden(){ try { localStorage.setItem('promo.hiddenCh', JSON.stringify([..._hidden])); } catch(e) {} }
+  function visCh(){ return LIVE.filter(c => !_hidden.has(c.key)); }
+  function buildChFilters(){
+    const box = document.getElementById('ch-filters');
+    const onlyGroup = g => LIVE.every(c => (c.group === g) === !_hidden.has(c.key));
+    if(LIVE.length < 2){ box.style.display = 'none'; return; }
+    let h = '<span class="flabel">채널</span>';
+    h += `<button class="fchip${_hidden.size===0?' active':''}" onclick="setGroup('ALL')">전체</button>`;
+    GROUPS.forEach(g => { h += `<button class="fchip${onlyGroup(g)&&GROUPS.length>1?' active':''}" onclick="setGroup('${g}')">${g}</button>`; });
+    h += '<span class="fsep"></span>';
+    LIVE.forEach(c => {
+      const on = !_hidden.has(c.key);
+      h += `<button class="chchip${on?' on':''}" style="${on?`background:${c.soft};color:${c.color};border-color:${c.color}55`:''}" onclick="toggleChannel('${c.key}')"><i style="background:${c.color}"></i>${c.label}</button>`;
+    });
+    box.innerHTML = h;
+  }
+  function setGroup(g){
+    _hidden = new Set(g === 'ALL' ? [] : LIVE.filter(c => c.group !== g).map(c => c.key));
+    saveHidden(); buildChFilters(); render();
+  }
+  function toggleChannel(k){
+    if(_hidden.has(k)) _hidden.delete(k);
+    else { if(LIVE.filter(c => !_hidden.has(c.key)).length <= 1) return; _hidden.add(k); }   // 마지막 하나는 숨기지 못하게
+    saveHidden(); buildChFilters(); render();
+  }
 
   // 필터
   let _filter = new Set();
@@ -2157,7 +2310,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     head += '</div></div>';
 
     let rows = '';
-    channels.forEach(ch => {
+    visCh().forEach(ch => {
       const evs = events[ch.key].filter(ev => ev._end>=wStart && ev._start<=wEnd).sort((a,b)=>a._start-b._start);
       // 레인 배치 (겹침 방지)
       const lanes = [];
@@ -2191,6 +2344,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   }
 
   function renderMonth(){
+    const VC = visCh();   // 화면에 보이기로 한 채널만 줄(레인)로 쓴다
     const year = _monthDate.getFullYear(), month = _monthDate.getMonth();
     document.getElementById('week-label').textContent = `${year}년 ${month+1}월`;
     const firstDow = new Date(year, month, 1).getDay();      // 0=일
@@ -2219,7 +2373,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
     weeks.forEach(week => {
       const wStart = week[0].d, wEnd = week[6].d;
       let evs = [];
-      channels.forEach(ch => {
+      VC.forEach(ch => {
         events[ch.key].forEach(ev => {
           if(ev._end>=wStart && ev._start<=wEnd && !dimmed(ev)) evs.push(ev);
         });
@@ -2230,7 +2384,7 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
       // 넘치는 부분은 날짜별로 "+N개 더보기"를 표시한다(구글 캘린더 방식).
       const weekKey = toStr(wStart);
       const chLaneCount = {};
-      channels.forEach(ch => {
+      VC.forEach(ch => {
         const chEvs = evs.filter(ev => ev.ch===ch.key).sort((a,b)=>a._start-b._start);
         const lanes = [];
         chEvs.forEach(ev => {
@@ -2242,24 +2396,24 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
         });
         chLaneCount[ch.key] = Math.max(1, lanes.length);
       });
-      const hasOverflow = channels.some(c => chLaneCount[c.key] > 1);
+      const hasOverflow = VC.some(c => chLaneCount[c.key] > 1);
       const expanded = _monthExpanded.has(weekKey);
 
       let visibleEvs, hiddenEvs, visibleLaneCount;
       const chLaneBase = {};
       if(expanded){
         let acc = 0;
-        channels.forEach(c => { chLaneBase[c.key]=acc; acc += chLaneCount[c.key]; });
+        VC.forEach(c => { chLaneBase[c.key]=acc; acc += chLaneCount[c.key]; });
         evs.forEach(ev => { ev._mlane = chLaneBase[ev.ch] + ev._sublane; });
         visibleEvs = evs;
         hiddenEvs = [];
         visibleLaneCount = acc;
       } else {
-        channels.forEach((c,i) => { chLaneBase[c.key]=i; });
+        VC.forEach((c,i) => { chLaneBase[c.key]=i; });
         visibleEvs = evs.filter(ev => ev._sublane===0);
         visibleEvs.forEach(ev => { ev._mlane = chLaneBase[ev.ch]; });
         hiddenEvs = evs.filter(ev => ev._sublane>0);
-        visibleLaneCount = channels.length;
+        visibleLaneCount = VC.length;
       }
       const laneCount = visibleLaneCount + (hasOverflow ? 1 : 0);
       const rowsCss = `18px repeat(${laneCount}, 18px)`;
@@ -2303,12 +2457,14 @@ SCHEDULE_TEMPLATE = r'''<!DOCTYPE html>
   }
 
   buildFilters();
+  buildChFilters();
   (function init(){
     const qs = new URLSearchParams(location.search);
     const vParam = qs.get('view');
     if(vParam === 'month') setView('month', true);
     const dCh = qs.get('ch'), dDate = qs.get('date');
     if(dCh && dDate){
+      if(_hidden.has(dCh)){ _hidden.delete(dCh); saveHidden(); buildChFilters(); }   // 검색에서 넘어온 행사의 채널은 반드시 보이게
       _weekMon = mondayOf(dDate);
       render();
       const bar = document.querySelector(`.bar[data-ch="${dCh}"][data-date="${dDate}"]`);
@@ -2344,7 +2500,7 @@ SEARCH_TEMPLATE = r'''<!DOCTYPE html>
     .top-nav a:hover { background: #fdf1e9; color: #e2541f; }
     .top-nav a.active { background: #e2541f; color: white; }
     .header-right { font-size: 11px; color: #888; }
-    .header-bar { height: 3px; background: linear-gradient(to right, #9dc3e8 25%, #cdb3e6 25% 50%, #e8a9a9 50% 75%, #efc199 75%); position: sticky; top: 57px; z-index: 99; }
+    .header-bar { height: 3px; background: __HEADER_BAR_SOFT__; position: sticky; top: 57px; z-index: 99; }
     .wrap { padding: 20px 24px 60px; max-width: 1080px; margin: 0 auto; }
     .panel { background: white; border-radius: 14px; padding: 18px 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 18px; }
     .prow { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -2478,7 +2634,7 @@ SEARCH_TEMPLATE = r'''<!DOCTYPE html>
   function buildCompanyFilters(){
     const box = document.getElementById('company-filters');
     box.innerHTML = channels.map(ch =>
-      `<span class="chip${state.ch.has(ch.key)?' active':''}" data-ch="${ch.key}" onclick="toggleCh('${ch.key}')">${ch.label}</span>`
+      `<span class="chip${state.ch.has(ch.key)?' active':''}" data-ch="${ch.key}" onclick="toggleCh('${ch.key}')" style="${state.ch.has(ch.key)?`background:${ch.color}`:''}">${ch.label}</span>`
     ).join('');
   }
   function buildBenefitFilters(){
@@ -2596,7 +2752,8 @@ def build_schedule_html(all_summaries):
             .replace('__SITE_NAME__', SITE_NAME)
             .replace('__FAVICON__', FAVICON_HTML)
             .replace('__LOGO__', LOGO_WORDMARK_HTML)
-            .replace('__EVENT_ENGINE__', EVENT_ENGINE_JS))
+            .replace('__HEADER_BAR_SOFT__', _header_bar_css(BAR_COLORS_SOFT))
+            .replace('__EVENT_ENGINE__', EVENT_ENGINE_JS.replace('__CHANNELS_JSON__', json.dumps(CHANNEL_META, ensure_ascii=False))))
     with open(os.path.join(BASE_DIR, 'schedule.html'), 'w', encoding='utf-8') as f:
         f.write(html)
     print('편성표(schedule.html) 생성 완료')
@@ -2610,10 +2767,107 @@ def build_search_html(all_summaries):
             .replace('__SITE_NAME__', SITE_NAME)
             .replace('__FAVICON__', FAVICON_HTML)
             .replace('__LOGO__', LOGO_WORDMARK_HTML)
-            .replace('__EVENT_ENGINE__', EVENT_ENGINE_JS))
+            .replace('__HEADER_BAR_SOFT__', _header_bar_css(BAR_COLORS_SOFT))
+            .replace('__EVENT_ENGINE__', EVENT_ENGINE_JS.replace('__CHANNELS_JSON__', json.dumps(CHANNEL_META, ensure_ascii=False))))
     with open(os.path.join(BASE_DIR, 'search.html'), 'w', encoding='utf-8') as f:
         f.write(html)
     print('검색(search.html) 생성 완료')
+
+
+INDEX_EXTRA_JS = r"""<script>
+  const CORE_CH = __CORE_JSON__;
+  const EXTRA_CH = __EXTRA_JSON__;
+  const ALL_CH = CORE_CH.concat(EXTRA_CH);
+  const ALL_BRANDS_JS = ALL_CH.map(c => c.key);
+  const CH_GROUPS = [...new Set(ALL_CH.map(c => c.group))];
+  let _grp = 'ALL';
+  try { _grp = localStorage.getItem('promo.group') || 'ALL'; } catch(e) {}
+  if(_grp !== 'ALL' && !CH_GROUPS.includes(_grp)) _grp = 'ALL';
+  function _cardOf(key){ const el = document.getElementById(key + '-name'); return el ? el.closest('.card') : null; }
+  function applyChannelFilter(){
+    // 그날 데이터가 있는 채널·그룹만 대상으로 한다 (추가 채널은 데이터가 없는 날엔 칩도 카드도 숨김)
+    const live = ALL_CH.filter(c => { const card = _cardOf(c.key); return card && card.dataset.empty !== '1'; });
+    const liveGroups = new Set(live.map(c => c.group));
+    const grp = (_grp === 'ALL' || liveGroups.has(_grp)) ? _grp : 'ALL';
+    ALL_CH.forEach(c => {
+      const card = _cardOf(c.key); if(!card) return;
+      const show = (grp === 'ALL' || c.group === grp) && card.dataset.empty !== '1';
+      card.style.display = show ? '' : 'none';
+    });
+    const bar = document.getElementById('ch-bar');
+    if(bar){
+      bar.style.display = liveGroups.size < 2 ? 'none' : '';
+      bar.querySelectorAll('.fchip').forEach(b => {
+        const g = b.dataset.g;
+        b.style.display = (g === 'ALL' || liveGroups.has(g)) ? '' : 'none';
+        b.classList.toggle('active', g === grp);
+        if(g === 'ALL') b.textContent = '전체 ' + live.length;
+        else b.textContent = g + ' ' + live.filter(c => c.group === g).length;
+      });
+    }
+  }
+  function setGroupIdx(g){ _grp = g; try { localStorage.setItem('promo.group', g); } catch(e) {} applyChannelFilter(); }
+  function buildChBar(){
+    const bar = document.getElementById('ch-bar'); if(!bar) return;
+    let h = '<span class="flabel">채널</span>';
+    h += `<button class="fchip" data-g="ALL" onclick="setGroupIdx('ALL')">전체 ${ALL_CH.length}</button>`;
+    CH_GROUPS.forEach(gr => {
+      const n = ALL_CH.filter(c => c.group === gr).length;
+      h += `<button class="fchip" data-g="${gr}" onclick="setGroupIdx('${gr}')">${gr} ${n}</button>`;
+    });
+    bar.innerHTML = h;
+  }
+  function switchExtras(d, obj){
+    EXTRA_CH.forEach(c => {
+      const card = _cardOf(c.key); if(!card) return;
+      const s = obj[c.key];
+      const has = !!(s && s.name);
+      card.dataset.empty = has ? '0' : '1';
+      if(!has) return;
+      const noEvent = s.name === '해당없음';
+      g(c.key + '-img').src = 'captures/' + d + '/' + c.key + '_next_tab_full.jpg';
+      g(c.key + '-name').textContent = noEvent ? '행사 없음' : sfield(obj, c.key, 'name', c.label);
+      const pe = g(c.key + '-period');
+      if(pe){ pe.textContent = noEvent ? '행사 없음' : sfield(obj, c.key, 'period', d); pe.style.background = noEvent ? '#bbb' : ''; }
+      g(c.key + '-summary').innerHTML = renderSummary(noEvent ? '' : sfield(obj, c.key, 'body', NO_BODY));
+      card.classList.toggle('no-event', noEvent);
+    });
+    applyChannelFilter();
+  }
+  document.addEventListener('DOMContentLoaded', () => { buildChBar(); applyChannelFilter(); });
+</script>"""
+
+
+def _extra_card_html(c, latest, latest_s, no_body):
+    """홈쇼핑 4사 외 추가 채널의 카드(index.html). 그날 데이터가 없으면 숨김 상태로 만들어 두고 날짜 이동 시 JS가 켠다."""
+    s = latest_s.get(c['key']) or {}
+    has = bool(s.get('name'))
+    no_event = has and s.get('name') == '해당없음'
+    name = '행사 없음' if no_event else _s(s, 'name', c['label'])
+    period_badge = ('<span class="promo-period" id="%s-period" style="background:#bbb;">행사 없음</span>' % c['key']) if no_event \
+        else ('<span class="promo-period" id="%s-period">%s</span>' % (c['key'], _s(s, 'period', TODAY)))
+    body = '' if no_event else _s(s, 'body', no_body)
+    return (
+        '  <div class="card%s" data-group="%s" data-empty="%d"%s>\n'
+        '    <div class="card-header">\n'
+        '      <div class="card-header-top">\n'
+        '        <span class="logo %s">%s</span>\n'
+        '        <span class="promo-name" id="%s-name">%s</span>\n'
+        '      </div>\n'
+        '      %s\n'
+        '    </div>\n'
+        '    <div class="card-body">\n'
+        '      <div class="screenshot-wrap">\n'
+        '        <p>모바일 캡처본</p>\n'
+        '        <img id="%s-img" src="captures/%s/%s_next_tab_full.jpg" alt="%s" onclick="openModal(this.src)">\n'
+        '        <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>\n'
+        '      </div>\n'
+        '      <div class="summary" id="%s-summary">%s</div>\n'
+        '    </div>\n'
+        '  </div>\n'
+    ) % ('  no-event' if no_event else '', c['group'], 0 if has else 1, '' if has else ' style="display:none"',
+         c['key'], c['label'], c['key'], name, period_badge,
+         c['key'], latest, c['key'], c['label'], c['key'], body)
 
 
 def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
@@ -2643,6 +2897,19 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     lotte_body   = _s(latest_s.get('lotte',   {}), 'body',   no_body)
 
     hyundai_no_event = (hyundai_name == '해당없음')
+
+    extra_cards_html = ''.join(_extra_card_html(c, latest, latest_s, no_body) for c in EXTRA_CHANNELS)
+    extra_sidebar_html = ''.join(
+        f'  <a class="{c["key"]}" href="{c["url"]}" target="_blank">\n    <span class="site-icon">{c["icon"]}</span>{c["label"]}\n  </a>\n'
+        for c in EXTRA_CHANNELS)
+    extra_css = ''.join(
+        f'    .sidebar a.{c["key"]} {{ background: {c["color"]}; }}\n    .logo.{c["key"]} {{ background: {c["color"]}; }}\n'
+        for c in EXTRA_CHANNELS)
+    header_bar_css = _header_bar_css(BAR_COLORS_STRONG)
+    index_extra_js = (INDEX_EXTRA_JS
+                      .replace('__CORE_JSON__', json.dumps(CORE_CHANNEL_META, ensure_ascii=False))
+                      .replace('__EXTRA_JSON__', json.dumps([{k: c[k] for k in ('key', 'label', 'group', 'color', 'soft')}
+                                                              for c in EXTRA_CHANNELS], ensure_ascii=False)))
 
     months_map = {}
     for d in archive_dates:
@@ -2682,7 +2949,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     .header-date {{ font-size: 13px; color: #666; }}
     .live-dot {{ display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; }}
     .live-dot::before {{ content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 2px #bbf7d0; display: block; }}
-    .header-bar {{ height: 3px; background: linear-gradient(to right, #1565c0 25%, #7b1fa2 25% 50%, #c62828 50% 75%, #e65100 75%); position: sticky; top: 57px; z-index: 99; }}
+    .header-bar {{ height: 3px; background: {header_bar_css}; position: sticky; top: 57px; z-index: 99; }}
     .page-wrap {{ display: flex; align-items: flex-start; }}
     .sidebar {{ width: 108px; min-width: 108px; position: sticky; top: 20px; margin: 20px 0 20px 20px; display: flex; flex-direction: column; gap: 10px; }}
     .sidebar a {{ display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px; border-radius: 14px; text-decoration: none; font-size: 11px; font-weight: 700; color: white; transition: opacity 0.15s, transform 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }}
@@ -2703,7 +2970,28 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     .nav-date:hover {{ background: #f0f4ff; }}
     .cal-pop {{ display: none; position: absolute; top: 38px; left: 0; z-index: 200; background: white; border: 1px solid #e0e4ff; border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 260px; }}
     .cal-pop.open {{ display: block; }}
-    .container {{ margin: 20px 20px 32px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }}
+    .container {{ margin: 20px 20px 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; }}
+    .ch-bar {{ margin: 16px 20px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }}
+    .ch-bar .flabel {{ font-size: 12px; font-weight: 700; color: #999; margin-right: 4px; }}
+    .ch-bar .fchip {{ font-size: 12px; font-weight: 700; color: #666; background: white; border: 1px solid #e0e4ff; padding: 7px 14px; border-radius: 20px; cursor: pointer; transition: all 0.15s; }}
+    .ch-bar .fchip:hover {{ background: #f0f4ff; }}
+    .ch-bar .fchip.active {{ background: #1a1a2e; color: white; border-color: #1a1a2e; }}
+    @media (max-width: 900px) {{
+      .container {{ grid-template-columns: 1fr; }}
+      .page-wrap {{ flex-direction: column; }}
+      .sidebar {{ width: auto; min-width: 0; position: static; margin: 12px 16px 0; flex-direction: row; overflow-x: auto; gap: 8px; }}
+      .sidebar a {{ flex-direction: row; gap: 6px; padding: 8px 12px; white-space: nowrap; border-radius: 20px; }}
+      .sidebar a .site-icon {{ font-size: 15px; }}
+      .main-area {{ width: 100%; }}
+    }}
+    @media (max-width: 640px) {{
+      header {{ padding: 10px 14px; flex-wrap: wrap; gap: 8px; }}
+      .header-right {{ display: none; }}
+      .top-nav a {{ padding: 6px 10px; white-space: nowrap; }}
+      .header-bar {{ top: 88px; }}
+      .date-nav, .container, .ch-bar {{ margin-left: 12px; margin-right: 12px; }}
+    }}
+{extra_css}
     .card {{ background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }}
     .card.no-event {{ opacity: 0.55; }}
     .card-header {{ padding: 14px 20px; border-bottom: 1px solid #f0f0f0; }}
@@ -2755,7 +3043,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
   <a class="hyundai" href="https://www.hmall.com" target="_blank">
     <span class="site-icon">🏬</span>현대홈쇼핑
   </a>
-</aside>
+{extra_sidebar_html}</aside>
 <div class="main-area">
 <div id="trend-banner" style="margin:16px 20px 0;background:#f8f9ff;border:1px solid #e0e4ff;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"></div>
 <div class="date-nav" id="date-nav">
@@ -2764,6 +3052,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
   <button class="nav-arrow" id="next-btn" onclick="navDate(1)">▶</button>
   <div class="cal-pop" id="cal-pop"></div>
 </div>
+<div class="ch-bar" id="ch-bar"></div>
 <div class="container">
   <div class="card">
     <div class="card-header">
@@ -2833,13 +3122,14 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
       <div class="summary" id="hyundai-summary">{hyundai_body}</div>
     </div>
   </div>
-</div>
+{extra_cards_html}</div>
 </div><!-- main-area -->
 </div><!-- page-wrap -->
 <div class="modal" id="modal" onclick="closeModal()">
   <span class="modal-close" onclick="closeModal()">✕</span>
   <img id="modal-img" src="" alt="">
 </div>
+{index_extra_js}
 <script>
   const BRAND_COLORS = {{gs:'#1565c0',cj:'#7b1fa2',lotte:'#c62828',hyundai:'#e65100'}};
   const BRANDS_ORDER = ['gs','cj','lotte','hyundai'];
@@ -2876,7 +3166,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     return rows.join('') || `<span style="color:#aaa;font-size:12px">${{text}}</span>`;
   }}
   function renderAll() {{
-    ['gs','cj','lotte','hyundai'].forEach(b => {{
+    ALL_BRANDS_JS.forEach(b => {{
       const el = g(b+'-summary');
       if (el) el.innerHTML = renderSummary(el.textContent);
     }});
@@ -2891,7 +3181,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     const week = allDates.slice(0, 7);
     if (week.length < 2) return;
     const tagCounts = {{}}, tagChannels = {{}};
-    const brands = ['gs','cj','lotte','hyundai'];
+    const brands = ALL_BRANDS_JS;
     const seenEvents = new Set();
     for (const d of week) {{
       const obj = summaries[d] || {{}};
@@ -2918,7 +3208,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     const pills = sorted.slice(0, 5).map(([tag, cnt]) => {{
       const c = TAG_COLORS[tag] || {{bg:'#f3f4f6',color:'#374151',border:'#d1d5db'}};
       const ch = tagChannels[tag] ? tagChannels[tag].size : 0;
-      const hint = ch === 4 ? ' · 4개사 공통' : ch >= 3 ? ` · ${{ch}}개사` : '';
+      const hint = ch >= 3 ? ` · ${{ch}}개사` : '';
       return `<span style="background:${{c.bg}};color:${{c.color}};border:1px solid ${{c.border}};padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;white-space:nowrap">${{tag}} ${{cnt}}건${{hint}}</span>`;
     }}).join('');
     el.innerHTML = `<span style="color:#666;font-size:11px;font-weight:700;white-space:nowrap">📊 ${{from}}~${{to}}</span><div style="display:flex;gap:6px;flex-wrap:wrap">${{pills}}</div>`;
@@ -3118,6 +3408,7 @@ def update_html(hyundai_tab, gs_tab, cj_tab, lotte_tab, archive_dates):
     g('gs-summary').innerHTML      = renderSummary(sfield(obj,'gs','body',NO_BODY));
     g('cj-summary').innerHTML      = renderSummary(sfield(obj,'cj','body',NO_BODY));
     g('lotte-summary').innerHTML   = renderSummary(sfield(obj,'lotte','body',NO_BODY));
+    switchExtras(d, obj);
     g('header-date').textContent = '기준일: ' + d;
     _activeDate = d;
     updateNavBtns();
@@ -3154,7 +3445,8 @@ def git_push(archive_date_dir):
             f'{rel}/summary_gateway.json',
             f'{rel}/review.json',
             f'{rel}/tab_names.json',
-        ]
+        ] + [f'{rel}/{c["key"]}_{sfx}' for c in EXTRA_CHANNELS
+             for sfx in ('next_tab_full.jpg', 'banner.jpg', 'page_text.txt')]
     files_to_add = [f for f in candidates if os.path.exists(os.path.join(BASE_DIR, f.replace('/', os.sep)))]
 
     def run_git(args, check=False):
@@ -3226,7 +3518,7 @@ def _summary_needs_analysis(date_dir):
             data = json.load(f)
     except Exception:
         return True
-    for brand in ('hyundai', 'gs', 'cj', 'lotte'):
+    for brand in ALL_BRANDS:
         s = data.get(brand) or {}
         if '인증 오류' in (s.get('name') or '') or '요약 생성 실패' in (s.get('body') or ''):
             return True
@@ -3338,7 +3630,8 @@ def run_cloud_capture():
     os.makedirs(archive_dir, exist_ok=True)
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
-        for name, func in [('현대', run_hyundai), ('GS', run_gs), ('CJ', run_cj), ('롯데', run_lotte)]:
+        for name, func in [('현대', run_hyundai), ('GS', run_gs), ('CJ', run_cj), ('롯데', run_lotte)] + \
+                [(c['label'], c['run']) for c in EXTRA_CHANNELS]:
             try:
                 tab = _run_with_retry(func, browser, archive_dir, retries=2)
                 print(f'{name} 완료: {tab}')
@@ -3444,7 +3737,8 @@ if __name__ == '__main__':
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            for name, func in [('현대', run_hyundai), ('GS', run_gs), ('CJ', run_cj), ('롯데', run_lotte)]:
+            for name, func in [('현대', run_hyundai), ('GS', run_gs), ('CJ', run_cj), ('롯데', run_lotte)] + \
+                    [(c['label'], c['run']) for c in EXTRA_CHANNELS]:
                 try:
                     tab = _run_with_retry(func, browser, archive_date_dir, retries=2)
                     print(f'{name} 완료: {tab}')

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>홈쇼핑행사모아 — 2026.10.27</title>
+  <title>홈쇼핑행사모아 — 2026.10.28</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect x='1' y='5' width='15' height='15' rx='5' fill='#f6cba5'/%3E%3Crect x='10' y='9' width='17' height='17' rx='5.5' fill='#e2541f'/%3E%3C/svg%3E">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -19,7 +19,7 @@
     .header-date { font-size: 13px; color: #666; }
     .live-dot { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; }
     .live-dot::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 2px #bbf7d0; display: block; }
-    .header-bar { height: 3px; background: linear-gradient(to right, #1565c0 25%, #7b1fa2 25% 50%, #c62828 50% 75%, #e65100 75%); position: sticky; top: 57px; z-index: 99; }
+    .header-bar { height: 3px; background: linear-gradient(to right, #1565c0 0.0% 16.67%, #7b1fa2 16.67% 33.33%, #c62828 33.33% 50.0%, #e65100 50.0% 66.67%, #5a9a3b 66.67% 83.33%, #2a9aa5 83.33% 100.0%); position: sticky; top: 57px; z-index: 99; }
     .page-wrap { display: flex; align-items: flex-start; }
     .sidebar { width: 108px; min-width: 108px; position: sticky; top: 20px; margin: 20px 0 20px 20px; display: flex; flex-direction: column; gap: 10px; }
     .sidebar a { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px; border-radius: 14px; text-decoration: none; font-size: 11px; font-weight: 700; color: white; transition: opacity 0.15s, transform 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
@@ -40,7 +40,32 @@
     .nav-date:hover { background: #f0f4ff; }
     .cal-pop { display: none; position: absolute; top: 38px; left: 0; z-index: 200; background: white; border: 1px solid #e0e4ff; border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 260px; }
     .cal-pop.open { display: block; }
-    .container { margin: 20px 20px 32px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .container { margin: 20px 20px 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; }
+    .ch-bar { margin: 16px 20px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ch-bar .flabel { font-size: 12px; font-weight: 700; color: #999; margin-right: 4px; }
+    .ch-bar .fchip { font-size: 12px; font-weight: 700; color: #666; background: white; border: 1px solid #e0e4ff; padding: 7px 14px; border-radius: 20px; cursor: pointer; transition: all 0.15s; }
+    .ch-bar .fchip:hover { background: #f0f4ff; }
+    .ch-bar .fchip.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; }
+      .page-wrap { flex-direction: column; }
+      .sidebar { width: auto; min-width: 0; position: static; margin: 12px 16px 0; flex-direction: row; overflow-x: auto; gap: 8px; }
+      .sidebar a { flex-direction: row; gap: 6px; padding: 8px 12px; white-space: nowrap; border-radius: 20px; }
+      .sidebar a .site-icon { font-size: 15px; }
+      .main-area { width: 100%; }
+    }
+    @media (max-width: 640px) {
+      header { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+      .header-right { display: none; }
+      .top-nav a { padding: 6px 10px; white-space: nowrap; }
+      .header-bar { top: 88px; }
+      .date-nav, .container, .ch-bar { margin-left: 12px; margin-right: 12px; }
+    }
+    .sidebar a.oliveyoung { background: #5a9a3b; }
+    .logo.oliveyoung { background: #5a9a3b; }
+    .sidebar a.st11 { background: #2a9aa5; }
+    .logo.st11 { background: #2a9aa5; }
+
     .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
     .card.no-event { opacity: 0.55; }
     .card-header { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; }
@@ -73,7 +98,7 @@
     <a href="search.html">검색</a>
   </nav>
   <div class="header-right">
-    <span class="header-date" id="header-date">기준일: 2026-10-27</span>
+    <span class="header-date" id="header-date">기준일: 2026-10-28</span>
     <span class="live-dot">자동수집</span>
   </div>
 </header>
@@ -92,6 +117,12 @@
   <a class="hyundai" href="https://www.hmall.com" target="_blank">
     <span class="site-icon">🏬</span>현대홈쇼핑
   </a>
+  <a class="oliveyoung" href="https://www.oliveyoung.co.kr" target="_blank">
+    <span class="site-icon">🌿</span>올리브영
+  </a>
+  <a class="st11" href="https://m.11st.co.kr" target="_blank">
+    <span class="site-icon">🛒</span>11번가
+  </a>
 </aside>
 <div class="main-area">
 <div id="trend-banner" style="margin:16px 20px 0;background:#f8f9ff;border:1px solid #e0e4ff;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"></div>
@@ -101,6 +132,7 @@
   <button class="nav-arrow" id="next-btn" onclick="navDate(1)">▶</button>
   <div class="cal-pop" id="cal-pop"></div>
 </div>
+<div class="ch-bar" id="ch-bar"></div>
 <div class="container">
   <div class="card">
     <div class="card-header">
@@ -183,6 +215,40 @@
   카드: 5% 할인 (5만원 이상 구매시, 10/27 하루)</div>
     </div>
   </div>
+  <div class="card" data-group="뷰티·버티컬" data-empty="1" style="display:none">
+    <div class="card-header">
+      <div class="card-header-top">
+        <span class="logo oliveyoung">올리브영</span>
+        <span class="promo-name" id="oliveyoung-name">올리브영</span>
+      </div>
+      <span class="promo-period" id="oliveyoung-period">2026.10.28</span>
+    </div>
+    <div class="card-body">
+      <div class="screenshot-wrap">
+        <p>모바일 캡처본</p>
+        <img id="oliveyoung-img" src="captures/2026-10-27/oliveyoung_next_tab_full.jpg" alt="올리브영" onclick="openModal(this.src)">
+        <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
+      </div>
+      <div class="summary" id="oliveyoung-summary">캡처 완료 — 행사 내용은 위 이미지를 확인하세요</div>
+    </div>
+  </div>
+  <div class="card" data-group="오픈마켓" data-empty="1" style="display:none">
+    <div class="card-header">
+      <div class="card-header-top">
+        <span class="logo st11">11번가</span>
+        <span class="promo-name" id="st11-name">11번가</span>
+      </div>
+      <span class="promo-period" id="st11-period">2026.10.28</span>
+    </div>
+    <div class="card-body">
+      <div class="screenshot-wrap">
+        <p>모바일 캡처본</p>
+        <img id="st11-img" src="captures/2026-10-27/st11_next_tab_full.jpg" alt="11번가" onclick="openModal(this.src)">
+        <p style="font-size:10px;color:#bbb;">클릭하면 크게 보기</p>
+      </div>
+      <div class="summary" id="st11-summary">캡처 완료 — 행사 내용은 위 이미지를 확인하세요</div>
+    </div>
+  </div>
 </div>
 </div><!-- main-area -->
 </div><!-- page-wrap -->
@@ -190,6 +256,68 @@
   <span class="modal-close" onclick="closeModal()">✕</span>
   <img id="modal-img" src="" alt="">
 </div>
+<script>
+  const CORE_CH = [{"key": "gs", "label": "GS SHOP", "group": "홈쇼핑", "color": "#3b82c4", "soft": "#e8f1fb"}, {"key": "cj", "label": "CJ온스타일", "group": "홈쇼핑", "color": "#9b6fc0", "soft": "#f3ecfb"}, {"key": "lotte", "label": "롯데홈쇼핑", "group": "홈쇼핑", "color": "#d05a5a", "soft": "#fbeaea"}, {"key": "hyundai", "label": "현대홈쇼핑", "group": "홈쇼핑", "color": "#e08a4a", "soft": "#fcefe2"}];
+  const EXTRA_CH = [{"key": "oliveyoung", "label": "올리브영", "group": "뷰티·버티컬", "color": "#5a9a3b", "soft": "#eaf5e3"}, {"key": "st11", "label": "11번가", "group": "오픈마켓", "color": "#2a9aa5", "soft": "#e3f4f5"}];
+  const ALL_CH = CORE_CH.concat(EXTRA_CH);
+  const ALL_BRANDS_JS = ALL_CH.map(c => c.key);
+  const CH_GROUPS = [...new Set(ALL_CH.map(c => c.group))];
+  let _grp = 'ALL';
+  try { _grp = localStorage.getItem('promo.group') || 'ALL'; } catch(e) {}
+  if(_grp !== 'ALL' && !CH_GROUPS.includes(_grp)) _grp = 'ALL';
+  function _cardOf(key){ const el = document.getElementById(key + '-name'); return el ? el.closest('.card') : null; }
+  function applyChannelFilter(){
+    // 그날 데이터가 있는 채널·그룹만 대상으로 한다 (추가 채널은 데이터가 없는 날엔 칩도 카드도 숨김)
+    const live = ALL_CH.filter(c => { const card = _cardOf(c.key); return card && card.dataset.empty !== '1'; });
+    const liveGroups = new Set(live.map(c => c.group));
+    const grp = (_grp === 'ALL' || liveGroups.has(_grp)) ? _grp : 'ALL';
+    ALL_CH.forEach(c => {
+      const card = _cardOf(c.key); if(!card) return;
+      const show = (grp === 'ALL' || c.group === grp) && card.dataset.empty !== '1';
+      card.style.display = show ? '' : 'none';
+    });
+    const bar = document.getElementById('ch-bar');
+    if(bar){
+      bar.style.display = liveGroups.size < 2 ? 'none' : '';
+      bar.querySelectorAll('.fchip').forEach(b => {
+        const g = b.dataset.g;
+        b.style.display = (g === 'ALL' || liveGroups.has(g)) ? '' : 'none';
+        b.classList.toggle('active', g === grp);
+        if(g === 'ALL') b.textContent = '전체 ' + live.length;
+        else b.textContent = g + ' ' + live.filter(c => c.group === g).length;
+      });
+    }
+  }
+  function setGroupIdx(g){ _grp = g; try { localStorage.setItem('promo.group', g); } catch(e) {} applyChannelFilter(); }
+  function buildChBar(){
+    const bar = document.getElementById('ch-bar'); if(!bar) return;
+    let h = '<span class="flabel">채널</span>';
+    h += `<button class="fchip" data-g="ALL" onclick="setGroupIdx('ALL')">전체 ${ALL_CH.length}</button>`;
+    CH_GROUPS.forEach(gr => {
+      const n = ALL_CH.filter(c => c.group === gr).length;
+      h += `<button class="fchip" data-g="${gr}" onclick="setGroupIdx('${gr}')">${gr} ${n}</button>`;
+    });
+    bar.innerHTML = h;
+  }
+  function switchExtras(d, obj){
+    EXTRA_CH.forEach(c => {
+      const card = _cardOf(c.key); if(!card) return;
+      const s = obj[c.key];
+      const has = !!(s && s.name);
+      card.dataset.empty = has ? '0' : '1';
+      if(!has) return;
+      const noEvent = s.name === '해당없음';
+      g(c.key + '-img').src = 'captures/' + d + '/' + c.key + '_next_tab_full.jpg';
+      g(c.key + '-name').textContent = noEvent ? '행사 없음' : sfield(obj, c.key, 'name', c.label);
+      const pe = g(c.key + '-period');
+      if(pe){ pe.textContent = noEvent ? '행사 없음' : sfield(obj, c.key, 'period', d); pe.style.background = noEvent ? '#bbb' : ''; }
+      g(c.key + '-summary').innerHTML = renderSummary(noEvent ? '' : sfield(obj, c.key, 'body', NO_BODY));
+      card.classList.toggle('no-event', noEvent);
+    });
+    applyChannelFilter();
+  }
+  document.addEventListener('DOMContentLoaded', () => { buildChBar(); applyChannelFilter(); });
+</script>
 <script>
   const BRAND_COLORS = {gs:'#1565c0',cj:'#7b1fa2',lotte:'#c62828',hyundai:'#e65100'};
   const BRANDS_ORDER = ['gs','cj','lotte','hyundai'];
@@ -226,7 +354,7 @@
     return rows.join('') || `<span style="color:#aaa;font-size:12px">${text}</span>`;
   }
   function renderAll() {
-    ['gs','cj','lotte','hyundai'].forEach(b => {
+    ALL_BRANDS_JS.forEach(b => {
       const el = g(b+'-summary');
       if (el) el.innerHTML = renderSummary(el.textContent);
     });
@@ -241,7 +369,7 @@
     const week = allDates.slice(0, 7);
     if (week.length < 2) return;
     const tagCounts = {}, tagChannels = {};
-    const brands = ['gs','cj','lotte','hyundai'];
+    const brands = ALL_BRANDS_JS;
     const seenEvents = new Set();
     for (const d of week) {
       const obj = summaries[d] || {};
@@ -268,7 +396,7 @@
     const pills = sorted.slice(0, 5).map(([tag, cnt]) => {
       const c = TAG_COLORS[tag] || {bg:'#f3f4f6',color:'#374151',border:'#d1d5db'};
       const ch = tagChannels[tag] ? tagChannels[tag].size : 0;
-      const hint = ch === 4 ? ' · 4개사 공통' : ch >= 3 ? ` · ${ch}개사` : '';
+      const hint = ch >= 3 ? ` · ${ch}개사` : '';
       return `<span style="background:${c.bg};color:${c.color};border:1px solid ${c.border};padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;white-space:nowrap">${tag} ${cnt}건${hint}</span>`;
     }).join('');
     el.innerHTML = `<span style="color:#666;font-size:11px;font-weight:700;white-space:nowrap">📊 ${from}~${to}</span><div style="display:flex;gap:6px;flex-wrap:wrap">${pills}</div>`;
@@ -468,6 +596,7 @@
     g('gs-summary').innerHTML      = renderSummary(sfield(obj,'gs','body',NO_BODY));
     g('cj-summary').innerHTML      = renderSummary(sfield(obj,'cj','body',NO_BODY));
     g('lotte-summary').innerHTML   = renderSummary(sfield(obj,'lotte','body',NO_BODY));
+    switchExtras(d, obj);
     g('header-date').textContent = '기준일: ' + d;
     _activeDate = d;
     updateNavBtns();

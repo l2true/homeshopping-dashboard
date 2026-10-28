@@ -497,7 +497,7 @@ def assert_not_blocked(page, name, min_text=800):
 # 메인 화면만 찍으면 프로모션명과 캡처가 어긋난다. 그래서 사이트 전체 차원의 행사 배너(키워드 순서대로 우선)를 찾아
 # 그 배너의 상세(기획전) 페이지로 들어가 캡처한다. 못 찾거나 열리지 않으면 메인 화면을 찍는다.
 OLIVEYOUNG_EVENT_KEYWORDS = ['올리브 데이', '올리브데이', '올영세일', '올영 세일', '신상위크', '브랜드위크', '위크', '페스타', '세일']
-ST11_EVENT_KEYWORDS = ['십일절', '블랙프라이데이', '블프', '쇼핑페스타', '대축제', '페스타', '위크']
+ST11_EVENT_KEYWORDS = ['십일절', '블랙프라이데이', '블프', '쇼핑페스타', '대축제']   # 사이트 전체 차원의 대형 행사만
 
 _FIND_LINK_JS = {
     'oliveyoung': """(kws) => {
@@ -525,12 +525,11 @@ _FIND_LINK_JS = {
             const a = s.querySelector('a'), im = s.querySelector('img');
             return [((im && im.alt) || '').trim(), a ? a.href : ''];
         }).filter(x => /^https:\\/\\/(plan|promo)\\.11st\\.co\\.kr\\//.test(x[1]));   // 광고 클릭 추적 링크는 제외
-        const main = items.filter(x => !x[0].includes('예약구매'));   // "그랜드십일절 예약구매" 같은 하위 이벤트보다 대표 행사(쿠폰 받기 등)를 우선
-        for (const pool of [main, items]) {
-            for (const kw of kws) {
-                const it = pool.find(x => x[0].includes(kw));
-                if (it) return [it[0].slice(0, 60), it[1]];
-            }
+        // 오픈 전 티징 페이지, "그랜드십일절 예약구매" 같은 하위 이벤트는 대표 행사로 보지 않는다
+        const main = items.filter(x => !x[0].includes('티징') && !x[0].includes('예약구매'));
+        for (const kw of kws) {
+            const it = main.find(x => x[0].includes(kw));
+            if (it) return [it[0].slice(0, 60), it[1]];
         }
         return null;
     }""",
@@ -683,12 +682,9 @@ def run_st11(browser, archive_dir):
         print('  11번가 대표 행사 배너:', ev_text)
         if ev_href and _capture_event_landing(page, ev_href, archive_dir, 'st11', '11번가', _st11_clear_overlays):
             return ev_text
-        _st11_open_home(page)   # 대체: 메인 화면
-        scroll_to_load(page)
-        capture_full(page, os.path.join(archive_dir, 'st11_next_tab_full.png'), max_height=8000)
-        capture_banner(page, os.path.join(archive_dir, 'st11_banner.png'))
-        save_page_text(page, os.path.join(archive_dir, 'st11_page_text.txt'))
-        return '메인'
+        # 11번가 메인은 상품·광고 위주의 포털이라 대표 행사가 없는 날에는 메인 화면을 찍지 않고 그날은 건너뛴다
+        print('  11번가: 진행 중인 대표 행사 없음 → 오늘은 캡처하지 않습니다')
+        return None
     finally:
         page.close()
 
@@ -706,7 +702,7 @@ OLIVEYOUNG_PROMPT_EXTRA = (
 ST11_PROMPT_EXTRA = (
     '11번가는 오픈마켓입니다. 이 캡처는 메인 배너의 대표 행사(예: 그랜드십일절)를 눌러 들어간 행사 페이지입니다. '
     '프로모션명과 기간은 이 페이지의 제목·배너에 적힌 것을 쓰세요(기간 예: "10.26 - 10.31" → "10/26 ~ 10/31"). '
-    '제목에 "티징"·"예약구매"처럼 하위 구분이 붙어 있어도 프로모션명은 대표 행사명(예: 그랜드십일절)만 쓰고, 혜택은 그 행사의 쿠폰·적립 등 핵심 혜택을 쓰세요. '
+    '아직 오픈하지 않은 행사(티징 페이지, 오픈 카운트다운)는 진행 중인 행사가 아니므로 "해당없음"으로 쓰세요. '
     '메인 화면이 찍힌 날에는 상단 행사 배너·바로가기 아이콘(예: ~7만원혜택, 쿠폰/출첵, 1만원쿠폰)·가로 배너(예: 그랜드십일절 예약구매)·쇼킹딜 영역에서 '
     '사이트 전체 차원의 대표 행사 하나를 프로모션명으로 쓰세요 (예: 그랜드십일절). '
     '"AD"가 붙은 광고 상품, 검색창 안의 추천 문구, 실시간 쇼검·랭킹·상품 카드의 가격·할인율은 행사가 아니므로 제외하세요. '
@@ -1495,6 +1491,9 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
                 print(f'{brand} 형식 오류(재시도 후에도) → 실패 처리 (다음 실행에서 재분석)')
             if _last_source == 'gateway':      # 게이트웨이가 대신 분석한 경우도 같은 후처리를 거친다
                 result = _fix_gateway_result(archive_date_dir, brand, result)
+            if brand not in CORE_BRANDS and result.get('name', '').strip() == '해당없음':
+                print(f'{brand}: 진행 중인 대표 행사 없음 → 오늘은 제외')   # 추가 채널은 행사 없는 날 항목을 남기지 않는다
+                continue
             summaries[brand] = result
             shadow = _shadow_run_checked(archive_date_dir, brand, result, img_path, prompt, text_path, banner_path,
                                          extra_images=extra_images)

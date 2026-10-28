@@ -172,7 +172,7 @@ def scroll_to_load(page, steps=6, delay_ms=300):
     page.wait_for_timeout(300)
 
 
-def capture_full(page, path, max_height=9000):
+def capture_full(page, path, max_height=9000, before_shot=None):
     """전체 페이지 캡처. 하단 무한스크롤 상품피드 때문에 스크롤 높이가
     수만~수십만 px까지 부풀 수 있는데, full_page=True로 그대로 캡처하면
     AI 전송 시 이미지가 극단적으로 축소되어 상단 혜택 배너 글자가 뭉개져
@@ -206,6 +206,8 @@ def capture_full(page, path, max_height=9000):
     try:
         page.set_viewport_size({'width': VIEWPORT['width'], 'height': capped_h})
         page.wait_for_timeout(300)
+        if before_shot:
+            before_shot()
         page.screenshot(path=path, full_page=False, timeout=60000, animations='disabled')
     except Exception as e1:
         # fallback: 예외 시 기존 방식(전체 페이지)으로 한 번 더 시도
@@ -491,6 +493,64 @@ def assert_not_blocked(page, name, min_text=800):
         raise RuntimeError(f'{name}: 차단/확인 화면으로 보여 캡처하지 않습니다 (본문 {len(text.strip())}자)')
 
 
+# 메인 배너는 자동으로 돌아가는 캐러셀이라 캡처 순간 어떤 슬라이드가 보일지 매번 다르다. 그러면 화면의 캡처본과
+# 요약의 프로모션명이 어긋나므로, 사이트 전체 차원의 행사 배너(키워드 순서대로 우선)가 보이게 고정한 뒤 찍는다.
+OLIVEYOUNG_EVENT_KEYWORDS = ['올리브 데이', '올리브데이', '올영세일', '올영 세일', '신상위크', '브랜드위크', '위크', '페스타', '세일']
+ST11_EVENT_KEYWORDS = ['십일절', '블랙프라이데이', '블프', '쇼핑페스타', '대축제', '페스타', '위크']
+
+
+def focus_oliveyoung_banner(page):
+    """올리브영 메인 상단 스와이퍼를 행사 슬라이드로 옮기고 자동 넘김을 멈춘다. 찾은 슬라이드 문구를 반환(없으면 None)."""
+    return page.evaluate("""(kws) => {
+        let target = null;
+        document.querySelectorAll('*').forEach(el => {
+            const sw = el.swiper;
+            if (!sw || !sw.slides) return;
+            const top = el.getBoundingClientRect().top + scrollY;
+            const slides = [...sw.slides].filter(s => !s.className.includes('duplicate'));
+            if (top > 40 && top < 250 && slides.length >= 8 && (!target || slides.length > target.slides.length)) target = {sw, slides};
+        });
+        if (!target) return null;
+        const texts = target.slides.map(s => (s.innerText || '').replace(/\\s+/g, ' ').trim());
+        for (const kw of kws) {
+            const i = texts.findIndex(t => t.includes(kw));
+            if (i >= 0) {
+                try { target.sw.autoplay && target.sw.autoplay.stop(); } catch (e) {}
+                // loop 모드에서는 DOM 순서와 실제 슬라이드 번호가 다를 수 있어 data-swiper-slide-index 를 우선 쓴다
+                const attr = target.slides[i].getAttribute('data-swiper-slide-index');
+                const real = attr !== null ? parseInt(attr, 10) : i;
+                target.sw.params && target.sw.params.loop ? target.sw.slideToLoop(real, 0) : target.sw.slideTo(real, 0);
+                return texts[i].slice(0, 60);
+            }
+        }
+        return null;
+    }""", OLIVEYOUNG_EVENT_KEYWORDS)
+
+
+def focus_st11_banner(page):
+    """11번가 메인 상단 배너를 행사 슬라이드로 옮긴다(슬라이드가 이미지뿐이라 img alt·로그 속성의 문구로 고른다)."""
+    return page.evaluate("""(kws) => {
+        const el = document.querySelector('.w-swiper');
+        if (!el) return null;
+        const wrap = el.querySelector('.swiper-wrapper');
+        const slides = [...el.querySelectorAll('.swiper-slide')].filter(s => !s.className.includes('duplicate'));
+        const labels = slides.map(s => {
+            const a = s.querySelector('a'), im = s.querySelector('img');
+            return ((im && im.alt) || '') + ' ' + ((a && a.getAttribute('data-log-body')) || '');
+        });
+        for (const kw of kws) {
+            const i = labels.findIndex(t => t.includes(kw));
+            if (i >= 0) {
+                const sl = slides[i];
+                wrap.style.setProperty('transition', 'none', 'important');
+                wrap.style.setProperty('transform', 'translate3d(' + (-sl.offsetLeft) + 'px, 0, 0)', 'important');
+                return labels[i].slice(0, 60);
+            }
+        }
+        return null;
+    }""", ST11_EVENT_KEYWORDS)
+
+
 def run_oliveyoung(browser, archive_dir):
     """올리브영(뷰티 버티컬) 메인 캡처. 홈쇼핑과 달리 탭 이동 없이 메인 화면의 행사 배너·기획전 영역을 본다."""
     page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
@@ -535,9 +595,13 @@ def run_oliveyoung(browser, archive_dir):
     page.set_viewport_size({'width': VIEWPORT['width'], 'height': min(int(total_h), 6000)})
     page.wait_for_timeout(1500)
     page.evaluate("window.scrollTo(0, 0)")
+    print('  올리브영 배너 고정:', focus_oliveyoung_banner(page))
+    page.wait_for_timeout(400)
     page.screenshot(path=os.path.join(archive_dir, 'oliveyoung_next_tab_full.png'),
                     full_page=False, timeout=60000, animations='disabled')
     page.set_viewport_size(VIEWPORT)
+    focus_oliveyoung_banner(page)
+    page.wait_for_timeout(400)
     capture_banner(page, os.path.join(archive_dir, 'oliveyoung_banner.png'))
     save_page_text(page, os.path.join(archive_dir, 'oliveyoung_page_text.txt'))
     page.close()
@@ -569,7 +633,10 @@ def run_st11(browser, archive_dir):
         document.body.style.removeProperty('overflow');
     }""")
     scroll_to_load(page)
-    capture_full(page, os.path.join(archive_dir, 'st11_next_tab_full.png'), max_height=8000)
+    capture_full(page, os.path.join(archive_dir, 'st11_next_tab_full.png'), max_height=8000,
+                 before_shot=lambda: print('  11번가 배너 고정:', focus_st11_banner(page)))
+    focus_st11_banner(page)
+    page.wait_for_timeout(300)
     capture_banner(page, os.path.join(archive_dir, 'st11_banner.png'))
     save_page_text(page, os.path.join(archive_dir, 'st11_page_text.txt'))
     page.close()
@@ -582,6 +649,8 @@ OLIVEYOUNG_PROMPT_EXTRA = (
     '(예: 올리브 데이, 올영세일, 올영신상위크, 브랜드위크). '
     '특정 브랜드 광고 배너(예: "OO 방지민 포카 증정", "라운드랩 단독 증정"), 상품 카드의 가격·할인율·브랜드별 증정은 대표 행사가 아니므로 제외하세요. '
     '"단 3일"처럼 일수만 있고 날짜가 없으면 기간은 비워 두고, 날짜를 추측하지 마세요. '
+    '쿠폰의 적용 시작일·"커밍순" 같은 날짜는 행사 기간이 아닙니다. '
+    '프로모션명은 캡처 이미지 맨 위 배너에 보이는 행사와 일치해야 합니다(텍스트에는 다른 슬라이드 문구도 섞여 있습니다). '
     '혜택은 행사 자체의 쿠폰·적립·할인·결제혜택·멤버십 혜택만 쓰세요. 사이트 전체 차원의 대표 행사가 보이지 않으면 프로모션명을 "해당없음"으로 쓰고 혜택은 생략하세요.'
 )
 ST11_PROMPT_EXTRA = (
@@ -590,6 +659,8 @@ ST11_PROMPT_EXTRA = (
     '사이트 전체 차원의 대표 행사 하나를 프로모션명으로 쓰세요 (예: 그랜드십일절). '
     '"AD"가 붙은 광고 상품, 검색창 안의 추천 문구, 실시간 쇼검·랭킹·상품 카드의 가격·할인율은 행사가 아니므로 제외하세요. '
     '"단 3일"처럼 날짜 없이 일수만 있으면 기간은 비워 두세요. '
+    '쿠폰의 적용 시작일·"커밍순" 같은 날짜는 행사 기간이 아닙니다. '
+    '프로모션명은 캡처 이미지 맨 위 배너에 보이는 행사와 일치해야 합니다(텍스트에는 다른 슬라이드 문구도 섞여 있습니다). '
     '혜택은 행사 자체의 쿠폰·적립·할인·카드/페이 혜택만 쓰세요. 사이트 전체 차원의 대표 행사가 보이지 않으면 프로모션명을 "해당없음"으로 쓰고 혜택은 생략하세요.'
 )
 

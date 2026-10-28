@@ -493,79 +493,81 @@ def assert_not_blocked(page, name, min_text=800):
         raise RuntimeError(f'{name}: 차단/확인 화면으로 보여 캡처하지 않습니다 (본문 {len(text.strip())}자)')
 
 
-# 메인 배너는 자동으로 돌아가는 캐러셀이라 캡처 순간 어떤 슬라이드가 보일지 매번 다르다. 그러면 화면의 캡처본과
-# 요약의 프로모션명이 어긋나므로, 사이트 전체 차원의 행사 배너(키워드 순서대로 우선)가 보이게 고정한 뒤 찍는다.
+# 홈쇼핑은 "홈 다음 탭"의 행사 페이지를 찍는데, 올리브영·11번가는 메인 상단 배너가 자동으로 돌아가는 캐러셀이라
+# 메인 화면만 찍으면 프로모션명과 캡처가 어긋난다. 그래서 사이트 전체 차원의 행사 배너(키워드 순서대로 우선)를 찾아
+# 그 배너의 상세(기획전) 페이지로 들어가 캡처한다. 못 찾거나 열리지 않으면 메인 화면을 찍는다.
 OLIVEYOUNG_EVENT_KEYWORDS = ['올리브 데이', '올리브데이', '올영세일', '올영 세일', '신상위크', '브랜드위크', '위크', '페스타', '세일']
-ST11_EVENT_KEYWORDS = ['십일절', '블랙프라이데이', '블프', '쇼핑페스타', '대축제', '페스타', '위크']
+ST11_EVENT_KEYWORDS = ['십일절 예약구매', '십일절', '블랙프라이데이', '블프', '쇼핑페스타', '대축제', '페스타', '위크']
 
-
-def focus_oliveyoung_banner(page):
-    """올리브영 메인 상단 스와이퍼를 행사 슬라이드로 옮기고 자동 넘김을 멈춘다. 찾은 슬라이드 문구를 반환(없으면 None)."""
-    return page.evaluate("""(kws) => {
-        let target = null;
+_FIND_LINK_JS = {
+    'oliveyoung': """(kws) => {
+        let slides = null;
         document.querySelectorAll('*').forEach(el => {
             const sw = el.swiper;
             if (!sw || !sw.slides) return;
             const top = el.getBoundingClientRect().top + scrollY;
-            const slides = [...sw.slides].filter(s => !s.className.includes('duplicate'));
-            if (top > 40 && top < 250 && slides.length >= 8 && (!target || slides.length > target.slides.length)) target = {sw, slides};
+            const sl = [...sw.slides].filter(s => !s.className.includes('duplicate'));
+            if (top > 40 && top < 250 && sl.length >= 8 && (!slides || sl.length > slides.length)) slides = sl;
         });
-        if (!target) return null;
-        const texts = target.slides.map(s => (s.innerText || '').replace(/\\s+/g, ' ').trim());
+        if (!slides) return null;
+        const items = slides.map(s => { const a = s.querySelector('a'); return [(s.innerText || '').replace(/\\s+/g, ' ').trim(), a ? a.href : '']; });
         for (const kw of kws) {
-            const i = texts.findIndex(t => t.includes(kw));
-            if (i >= 0) {
-                try { target.sw.autoplay && target.sw.autoplay.stop(); } catch (e) {}
-                // loop 모드에서는 DOM 순서와 실제 슬라이드 번호가 다를 수 있어 data-swiper-slide-index 를 우선 쓴다
-                const attr = target.slides[i].getAttribute('data-swiper-slide-index');
-                const real = attr !== null ? parseInt(attr, 10) : i;
-                target.sw.params && target.sw.params.loop ? target.sw.slideToLoop(real, 0) : target.sw.slideTo(real, 0);
-                return texts[i].slice(0, 60);
-            }
+            const it = items.find(x => x[1] && x[0].includes(kw));
+            if (it) return [it[0].slice(0, 60), it[1]];
         }
         return null;
-    }""", OLIVEYOUNG_EVENT_KEYWORDS)
-
-
-def focus_st11_banner(page):
-    """11번가 메인 상단 배너를 행사 슬라이드로 옮긴다(슬라이드가 이미지뿐이라 img alt·로그 속성의 문구로 고른다)."""
-    return page.evaluate("""(kws) => {
+    }""",
+    'st11': """(kws) => {
         const el = document.querySelector('.w-swiper');
         if (!el) return null;
-        const wrap = el.querySelector('.swiper-wrapper');
         const slides = [...el.querySelectorAll('.swiper-slide')].filter(s => !s.className.includes('duplicate'));
-        const labels = slides.map(s => {
+        const items = slides.map(s => {
             const a = s.querySelector('a'), im = s.querySelector('img');
-            return ((im && im.alt) || '') + ' ' + ((a && a.getAttribute('data-log-body')) || '');
-        });
+            return [((im && im.alt) || '').trim(), a ? a.href : ''];
+        }).filter(x => /^https:\\/\\/(plan|promo)\\.11st\\.co\\.kr\\//.test(x[1]));   // 광고 클릭 추적 링크는 제외
         for (const kw of kws) {
-            const i = labels.findIndex(t => t.includes(kw));
-            if (i >= 0) {
-                const sl = slides[i];
-                wrap.style.setProperty('transition', 'none', 'important');
-                wrap.style.setProperty('transform', 'translate3d(' + (-sl.offsetLeft) + 'px, 0, 0)', 'important');
-                return labels[i].slice(0, 60);
-            }
+            const it = items.find(x => x[0].includes(kw));
+            if (it) return [it[0].slice(0, 60), it[1]];
         }
         return null;
-    }""", ST11_EVENT_KEYWORDS)
+    }""",
+}
 
 
-def run_oliveyoung(browser, archive_dir):
-    """올리브영(뷰티 버티컬) 메인 캡처. 홈쇼핑과 달리 탭 이동 없이 메인 화면의 행사 배너·기획전 영역을 본다."""
-    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
-    page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
-    page.goto('https://www.oliveyoung.co.kr/store/main/main.do', wait_until='domcontentloaded', timeout=45000)
-    page.wait_for_timeout(4000)
+def find_event_link(page, site):
+    """메인 배너에서 사이트 전체 차원의 행사 슬라이드를 찾아 (문구, 상세 페이지 링크)를 돌려준다. 없으면 (None, None)."""
+    kws = OLIVEYOUNG_EVENT_KEYWORDS if site == 'oliveyoung' else ST11_EVENT_KEYWORDS
     try:
-        assert_not_blocked(page, '올리브영')
-    except RuntimeError:
-        page.wait_for_timeout(6000)   # 보안 확인 화면은 잠시 뒤 통과되는 경우가 있어 한 번 더 기다려 본다
-        try:
-            assert_not_blocked(page, '올리브영')
-        except Exception:
-            page.close()
-            raise
+        r = page.evaluate(_FIND_LINK_JS[site], kws)
+    except Exception as e:
+        print(f'  {site} 행사 배너 찾기 실패: {e}')
+        return None, None
+    return (r[0], r[1]) if r else (None, None)
+
+
+def _capture_event_landing(page, href, archive_dir, key, name, clear_fn):
+    """행사 상세 페이지로 들어가 캡처(전체·배너·텍스트)한다. 성공 True, 실패하면 만든 파일을 지우고 False."""
+    try:
+        page.goto(href, wait_until='domcontentloaded', timeout=45000)
+        page.wait_for_timeout(4000)
+        clear_fn(page)
+        assert_not_blocked(page, name, min_text=300)
+        scroll_to_load(page, steps=4)
+        capture_full(page, os.path.join(archive_dir, f'{key}_next_tab_full.png'), max_height=9000)
+        capture_banner(page, os.path.join(archive_dir, f'{key}_banner.png'))
+        save_page_text(page, os.path.join(archive_dir, f'{key}_page_text.txt'))
+        return True
+    except Exception as e:
+        print(f'  {name} 행사 상세 캡처 실패 → 메인 화면으로 대체: {e}')
+        for f in (f'{key}_next_tab_full.png', f'{key}_banner.png', f'{key}_page_text.txt'):
+            try:
+                os.remove(os.path.join(archive_dir, f))
+            except OSError:
+                pass
+        return False
+
+
+def _oy_clear_overlays(page):
     # 서비스 전환 서랍·Braze 앱내 메시지(하단 시트, 딤 레이어)가 화면을 덮고 스크롤을 잠근다
     for _ in range(3):
         page.evaluate("""() => {
@@ -576,49 +578,27 @@ def run_oliveyoung(browser, archive_dir):
         page.wait_for_timeout(1000)
     page.evaluate("""() => {
         document.querySelectorAll('.ab-iam-root, .ab-ios-scroll-wrapper, [class*=ThemeDrawerV3Dim]').forEach(e => e.remove());
+        document.querySelectorAll('[class*=dim], [class*=Dim], [class*=overlay], [class*=Overlay]').forEach(e => {
+            const cs = getComputedStyle(e);
+            if (cs.position === 'fixed' && e.getBoundingClientRect().height > 300) e.remove();   // 화면을 어둡게 덮는 딤 레이어
+        });
         document.body.classList.remove('ab-pause-scrolling');
     }""")
-    # 본문은 메인 스와이퍼 안쪽에서만 스크롤되므로, 높이 제한을 풀어 전체 길이로 펼친다
-    total_h = page.evaluate("""() => {
-        let e = document.getElementById('main-inner-swiper-home');
-        while (e && e !== document.documentElement) {
-            e.style.setProperty('height', 'auto', 'important');
-            e.style.setProperty('max-height', 'none', 'important');
-            e.style.setProperty('overflow', 'visible', 'important');
-            e = e.parentElement;
-        }
-        document.body.style.setProperty('overflow', 'visible', 'important');
-        document.documentElement.style.setProperty('overflow', 'visible', 'important');
-        return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-    }""") or 6000
-    page.wait_for_timeout(800)
-    page.set_viewport_size({'width': VIEWPORT['width'], 'height': min(int(total_h), 6000)})
-    page.wait_for_timeout(1500)
-    page.evaluate("window.scrollTo(0, 0)")
-    print('  올리브영 배너 고정:', focus_oliveyoung_banner(page))
-    page.wait_for_timeout(400)
-    page.screenshot(path=os.path.join(archive_dir, 'oliveyoung_next_tab_full.png'),
-                    full_page=False, timeout=60000, animations='disabled')
-    page.set_viewport_size(VIEWPORT)
-    focus_oliveyoung_banner(page)
-    page.wait_for_timeout(400)
-    capture_banner(page, os.path.join(archive_dir, 'oliveyoung_banner.png'))
-    save_page_text(page, os.path.join(archive_dir, 'oliveyoung_page_text.txt'))
-    page.close()
-    return '메인'
 
 
-def run_st11(browser, archive_dir):
-    """11번가(오픈마켓) 메인 캡처. 앱 설치 유도 시트·상단 앱 배너를 닫고 메인 상단(행사 배너·혜택 바로가기)을 본다."""
-    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
-    page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
-    page.goto('https://m.11st.co.kr/page/main/home', wait_until='domcontentloaded', timeout=45000)
-    page.wait_for_timeout(4000)
-    try:
-        assert_not_blocked(page, '11번가')
-    except Exception:
-        page.close()
-        raise
+def _oy_clear_landing(page):
+    """행사 상세 페이지용: 닫기 버튼을 누르면 오히려 화면을 어둡게 덮는 레이어가 생겨서, 클릭 없이 덮개만 제거한다."""
+    page.evaluate("""() => {
+        document.querySelectorAll('.ab-iam-root, .ab-ios-scroll-wrapper, [class*=ThemeDrawerV3Dim]').forEach(e => e.remove());
+        document.querySelectorAll('body *').forEach(e => {
+            const cs = getComputedStyle(e), b = e.getBoundingClientRect();
+            if (cs.position === 'fixed' && b.width >= 380 && b.height >= 600 && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && e.children.length === 0) e.remove();
+        });
+        document.body.classList.remove('ab-pause-scrolling');
+    }""")
+
+
+def _st11_clear_overlays(page):
     for _ in range(2):   # 앱 설치 유도 하단 시트: 텍스트 정확 일치 클릭이 안 먹는 경우가 있어 DOM에서 직접 누른다
         page.evaluate("""() => {
             [...document.querySelectorAll('body *')].filter(e => e.children.length === 0 && e.innerText &&
@@ -632,35 +612,103 @@ def run_st11(browser, archive_dir):
         });
         document.body.style.removeProperty('overflow');
     }""")
-    scroll_to_load(page)
-    capture_full(page, os.path.join(archive_dir, 'st11_next_tab_full.png'), max_height=8000,
-                 before_shot=lambda: print('  11번가 배너 고정:', focus_st11_banner(page)))
-    focus_st11_banner(page)
-    page.wait_for_timeout(300)
-    capture_banner(page, os.path.join(archive_dir, 'st11_banner.png'))
-    save_page_text(page, os.path.join(archive_dir, 'st11_page_text.txt'))
-    page.close()
-    return '메인'
+
+
+def _oy_open_home(page):
+    page.goto('https://www.oliveyoung.co.kr/store/main/main.do', wait_until='domcontentloaded', timeout=45000)
+    page.wait_for_timeout(4000)
+    try:
+        assert_not_blocked(page, '올리브영')
+    except RuntimeError:
+        page.wait_for_timeout(6000)   # 보안 확인 화면은 잠시 뒤 통과되는 경우가 있어 한 번 더 기다려 본다
+        assert_not_blocked(page, '올리브영')
+    _oy_clear_overlays(page)
+
+
+def run_oliveyoung(browser, archive_dir):
+    """올리브영(뷰티 버티컬) 캡처: 메인 배너에서 대표 행사를 찾아 그 행사 상세(기획전) 페이지를 찍는다."""
+    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
+    page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
+    try:
+        _oy_open_home(page)
+        ev_text, ev_href = find_event_link(page, 'oliveyoung')
+        print('  올리브영 대표 행사 배너:', ev_text)
+        if ev_href and _capture_event_landing(page, ev_href, archive_dir, 'oliveyoung', '올리브영', _oy_clear_landing):
+            return ev_text
+        # 대체: 메인 화면. 본문은 메인 스와이퍼 안쪽에서만 스크롤되므로 높이 제한을 풀어 전체 길이로 펼친다.
+        _oy_open_home(page)
+        total_h = page.evaluate("""() => {
+            let e = document.getElementById('main-inner-swiper-home');
+            while (e && e !== document.documentElement) {
+                e.style.setProperty('height', 'auto', 'important');
+                e.style.setProperty('max-height', 'none', 'important');
+                e.style.setProperty('overflow', 'visible', 'important');
+                e = e.parentElement;
+            }
+            document.body.style.setProperty('overflow', 'visible', 'important');
+            document.documentElement.style.setProperty('overflow', 'visible', 'important');
+            return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        }""") or 6000
+        page.wait_for_timeout(800)
+        page.set_viewport_size({'width': VIEWPORT['width'], 'height': min(int(total_h), 6000)})
+        page.wait_for_timeout(1500)
+        page.evaluate("window.scrollTo(0, 0)")
+        page.screenshot(path=os.path.join(archive_dir, 'oliveyoung_next_tab_full.png'),
+                        full_page=False, timeout=60000, animations='disabled')
+        page.set_viewport_size(VIEWPORT)
+        capture_banner(page, os.path.join(archive_dir, 'oliveyoung_banner.png'))
+        save_page_text(page, os.path.join(archive_dir, 'oliveyoung_page_text.txt'))
+        return '메인'
+    finally:
+        page.close()
+
+
+def _st11_open_home(page):
+    page.goto('https://m.11st.co.kr/page/main/home', wait_until='domcontentloaded', timeout=45000)
+    page.wait_for_timeout(4000)
+    assert_not_blocked(page, '11번가')
+    _st11_clear_overlays(page)
+
+
+def run_st11(browser, archive_dir):
+    """11번가(오픈마켓) 캡처: 메인 배너에서 대표 행사(예: 그랜드십일절)를 찾아 그 행사 페이지를 찍는다."""
+    page = browser.new_page(viewport=VIEWPORT, user_agent=MOBILE_UA, device_scale_factor=DEVICE_SCALE)
+    page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
+    try:
+        _st11_open_home(page)
+        ev_text, ev_href = find_event_link(page, 'st11')
+        print('  11번가 대표 행사 배너:', ev_text)
+        if ev_href and _capture_event_landing(page, ev_href, archive_dir, 'st11', '11번가', _st11_clear_overlays):
+            return ev_text
+        _st11_open_home(page)   # 대체: 메인 화면
+        scroll_to_load(page)
+        capture_full(page, os.path.join(archive_dir, 'st11_next_tab_full.png'), max_height=8000)
+        capture_banner(page, os.path.join(archive_dir, 'st11_banner.png'))
+        save_page_text(page, os.path.join(archive_dir, 'st11_page_text.txt'))
+        return '메인'
+    finally:
+        page.close()
 
 
 OLIVEYOUNG_PROMPT_EXTRA = (
-    '올리브영은 홈쇼핑이 아니라 뷰티 버티컬 쇼핑몰이고, 이 캡처는 메인 화면입니다. '
-    '상단 탭(세일·기획전·이벤트)·상단 큰 행사 배너·기획전 영역에서, 사이트 전체 차원의 대표 행사 하나를 프로모션명으로 쓰세요 '
-    '(예: 올리브 데이, 올영세일, 올영신상위크, 브랜드위크). '
+    '올리브영은 홈쇼핑이 아니라 뷰티 버티컬 쇼핑몰입니다. 이 캡처는 메인 배너의 대표 행사(예: 올리브 데이, 올영세일, 올영신상위크, 브랜드위크)를 '
+    '눌러 들어간 행사 상세(기획전) 페이지입니다. 프로모션명과 기간은 이 페이지의 제목·배너에 적힌 것을 쓰세요(기간 예: "10.26 - 10.30" → "10/26 ~ 10/30"). '
+    '메인 화면이 찍힌 날(페이지가 메인 화면처럼 보이는 경우)에는 상단 큰 행사 배너·기획전 영역에서 사이트 전체 차원의 대표 행사 하나를 고르세요. '
     '특정 브랜드 광고 배너(예: "OO 방지민 포카 증정", "라운드랩 단독 증정"), 상품 카드의 가격·할인율·브랜드별 증정은 대표 행사가 아니므로 제외하세요. '
     '"단 3일"처럼 일수만 있고 날짜가 없으면 기간은 비워 두고, 날짜를 추측하지 마세요. '
     '쿠폰의 적용 시작일·"커밍순" 같은 날짜는 행사 기간이 아닙니다. '
-    '프로모션명은 캡처 이미지 맨 위 배너에 보이는 행사와 일치해야 합니다(텍스트에는 다른 슬라이드 문구도 섞여 있습니다). '
+    '프로모션명은 캡처 이미지에 보이는 행사와 일치해야 합니다. '
     '혜택은 행사 자체의 쿠폰·적립·할인·결제혜택·멤버십 혜택만 쓰세요. 사이트 전체 차원의 대표 행사가 보이지 않으면 프로모션명을 "해당없음"으로 쓰고 혜택은 생략하세요.'
 )
 ST11_PROMPT_EXTRA = (
-    '11번가는 오픈마켓이고, 이 캡처는 메인 화면입니다. '
-    '상단 행사 배너·바로가기 아이콘(예: ~7만원혜택, 쿠폰/출첵, 1만원쿠폰)·가로 배너(예: 그랜드십일절 예약구매)·쇼킹딜 영역에서 '
+    '11번가는 오픈마켓입니다. 이 캡처는 메인 배너의 대표 행사(예: 그랜드십일절)를 눌러 들어간 행사 페이지입니다. '
+    '프로모션명과 기간은 이 페이지의 제목·배너에 적힌 것을 쓰세요(기간 예: "10.26 - 10.31" → "10/26 ~ 10/31"). '
+    '메인 화면이 찍힌 날에는 상단 행사 배너·바로가기 아이콘(예: ~7만원혜택, 쿠폰/출첵, 1만원쿠폰)·가로 배너(예: 그랜드십일절 예약구매)·쇼킹딜 영역에서 '
     '사이트 전체 차원의 대표 행사 하나를 프로모션명으로 쓰세요 (예: 그랜드십일절). '
     '"AD"가 붙은 광고 상품, 검색창 안의 추천 문구, 실시간 쇼검·랭킹·상품 카드의 가격·할인율은 행사가 아니므로 제외하세요. '
     '"단 3일"처럼 날짜 없이 일수만 있으면 기간은 비워 두세요. '
     '쿠폰의 적용 시작일·"커밍순" 같은 날짜는 행사 기간이 아닙니다. '
-    '프로모션명은 캡처 이미지 맨 위 배너에 보이는 행사와 일치해야 합니다(텍스트에는 다른 슬라이드 문구도 섞여 있습니다). '
+    '프로모션명은 캡처 이미지에 보이는 행사와 일치해야 합니다. '
     '혜택은 행사 자체의 쿠폰·적립·할인·카드/페이 혜택만 쓰세요. 사이트 전체 차원의 대표 행사가 보이지 않으면 프로모션명을 "해당없음"으로 쓰고 혜택은 생략하세요.'
 )
 
@@ -1338,7 +1386,7 @@ def generate_summary(archive_date_dir, hyundai_tab, gs_tab, cj_tab, lotte_tab):
             continue   # 추가 채널은 그날 캡처가 없으면 항목 자체를 만들지 않는다(화면에서도 숨김)
         capture_date_str = os.path.basename(archive_date_dir)  # YYYY-MM-DD
         prompt = (
-            f'{label} {"홈쇼핑 모바일" if brand in CORE_BRANDS else "모바일 메인 화면"} 캡처본입니다. 캡처 날짜: {capture_date_str}\n'
+            f'{label} {"홈쇼핑 모바일" if brand in CORE_BRANDS else "대표 행사 페이지(없으면 메인 화면)"} 캡처본입니다. 캡처 날짜: {capture_date_str}\n'
             '텍스트 원문을 우선 참고하되, 텍스트에 없더라도 이미지에서 명확히 보이는 혜택(사은품, 쿠폰, 적립 등)은 반드시 함께 추출하세요.\n\n'
             + (extra + '\n\n' if extra else '') +
             '규칙:\n'

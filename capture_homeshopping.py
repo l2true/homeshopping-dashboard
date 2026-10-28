@@ -497,7 +497,7 @@ def assert_not_blocked(page, name, min_text=800):
 # 메인 화면만 찍으면 프로모션명과 캡처가 어긋난다. 그래서 사이트 전체 차원의 행사 배너(키워드 순서대로 우선)를 찾아
 # 그 배너의 상세(기획전) 페이지로 들어가 캡처한다. 못 찾거나 열리지 않으면 메인 화면을 찍는다.
 OLIVEYOUNG_EVENT_KEYWORDS = ['올리브 데이', '올리브데이', '올영세일', '올영 세일', '신상위크', '브랜드위크', '위크', '페스타', '세일']
-ST11_EVENT_KEYWORDS = ['십일절 예약구매', '십일절', '블랙프라이데이', '블프', '쇼핑페스타', '대축제', '페스타', '위크']
+ST11_EVENT_KEYWORDS = ['십일절', '블랙프라이데이', '블프', '쇼핑페스타', '대축제', '페스타', '위크']
 
 _FIND_LINK_JS = {
     'oliveyoung': """(kws) => {
@@ -525,9 +525,12 @@ _FIND_LINK_JS = {
             const a = s.querySelector('a'), im = s.querySelector('img');
             return [((im && im.alt) || '').trim(), a ? a.href : ''];
         }).filter(x => /^https:\\/\\/(plan|promo)\\.11st\\.co\\.kr\\//.test(x[1]));   // 광고 클릭 추적 링크는 제외
-        for (const kw of kws) {
-            const it = items.find(x => x[0].includes(kw));
-            if (it) return [it[0].slice(0, 60), it[1]];
+        const main = items.filter(x => !x[0].includes('예약구매'));   // "그랜드십일절 예약구매" 같은 하위 이벤트보다 대표 행사(쿠폰 받기 등)를 우선
+        for (const pool of [main, items]) {
+            for (const kw of kws) {
+                const it = pool.find(x => x[0].includes(kw));
+                if (it) return [it[0].slice(0, 60), it[1]];
+            }
         }
         return null;
     }""",
@@ -703,6 +706,7 @@ OLIVEYOUNG_PROMPT_EXTRA = (
 ST11_PROMPT_EXTRA = (
     '11번가는 오픈마켓입니다. 이 캡처는 메인 배너의 대표 행사(예: 그랜드십일절)를 눌러 들어간 행사 페이지입니다. '
     '프로모션명과 기간은 이 페이지의 제목·배너에 적힌 것을 쓰세요(기간 예: "10.26 - 10.31" → "10/26 ~ 10/31"). '
+    '제목에 "티징"·"예약구매"처럼 하위 구분이 붙어 있어도 프로모션명은 대표 행사명(예: 그랜드십일절)만 쓰고, 혜택은 그 행사의 쿠폰·적립 등 핵심 혜택을 쓰세요. '
     '메인 화면이 찍힌 날에는 상단 행사 배너·바로가기 아이콘(예: ~7만원혜택, 쿠폰/출첵, 1만원쿠폰)·가로 배너(예: 그랜드십일절 예약구매)·쇼킹딜 영역에서 '
     '사이트 전체 차원의 대표 행사 하나를 프로모션명으로 쓰세요 (예: 그랜드십일절). '
     '"AD"가 붙은 광고 상품, 검색창 안의 추천 문구, 실시간 쇼검·랭킹·상품 카드의 가격·할인율은 행사가 아니므로 제외하세요. '

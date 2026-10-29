@@ -1,0 +1,20 @@
+[
+  {
+    "brand": "hyundai",
+    "field": "name",
+    "cli": "프리미엄 몽골리안 캐시미어 쇼룸",
+    "gateway": "슈캐시미어 쇼룸"
+  },
+  {
+    "brand": "hyundai",
+    "field": "period",
+    "cli": "~ 10/29",
+    "gateway": "10/29"
+  },
+  {
+    "brand": "oliveyoung",
+    "field": "name",
+    "cli": "올영신상위크",
+    "gateway": "10월 올영신상 Week"
+  }
+]

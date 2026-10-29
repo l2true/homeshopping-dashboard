@@ -4,5 +4,11 @@
     "field": "period",
     "cli": "~10/28",
     "gateway": "10/26 ~ 10/28"
+  },
+  {
+    "brand": "oliveyoung",
+    "field": "name",
+    "cli": "올영신상위크",
+    "gateway": "10월 올영신상 Week"
   }
 ]

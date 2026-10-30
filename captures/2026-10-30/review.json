@@ -1,0 +1,14 @@
+[
+  {
+    "brand": "hyundai",
+    "field": "name",
+    "cli": "트렌드쇼핑위크",
+    "gateway": "트렌드위크쇼핑"
+  },
+  {
+    "brand": "lotte",
+    "field": "name",
+    "cli": "건강한데이 신선식품 수산대전",
+    "gateway": "신선식품 수산대전"
+  }
+]

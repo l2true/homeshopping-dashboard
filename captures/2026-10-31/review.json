@@ -1,0 +1,14 @@
+[
+  {
+    "brand": "gs",
+    "field": "name",
+    "cli": "리빙쇼페어",
+    "gateway": "리빙페어"
+  },
+  {
+    "brand": "oliveyoung",
+    "field": "name",
+    "cli": "블랙프라이데이 미리보기",
+    "gateway": "해당없음"
+  }
+]
